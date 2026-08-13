@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KTP biaxial index ellipsoid — theta and phi</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: light-dark(#ffffff,#111318);
+    --panel: light-dark(#f7f8fa,#191c22);
+    --text: light-dark(#15171a,#f2f3f5);
+    --muted: light-dark(#5f6670,#aeb4be);
+    --border: light-dark(#d8dde5,#353a44);
+    --ellipsoid: #4c78a8;
+    --plane: #f28e2b;
+    --ellipse: #2a9d66;
+    --kvec: #7b5bb5;
+    --mode1: #2a9d66;
+    --mode2: #d97706;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; padding:24px;
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;
+    background:var(--bg); color:var(--text);
+  }
+  .wrap { max-width:1080px; margin:0 auto; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  .sub { color:var(--muted); margin-bottom:18px; line-height:1.45; }
+  .controls {
+    display:grid; grid-template-columns:1fr 1fr; gap:18px;
+    padding:16px; border:1px solid var(--border); border-radius:14px;
+    background:var(--panel); margin-bottom:16px;
+  }
+  .control label {
+    display:flex; justify-content:space-between; gap:12px;
+    font-weight:650; margin-bottom:8px;
+  }
+  input[type=range] { width:100%; }
+  .layout {
+    display:grid; grid-template-columns:minmax(0,1fr) 285px;
+    gap:16px; align-items:start;
+  }
+  .canvas-card,.info-card {
+    border:1px solid var(--border); border-radius:14px; background:var(--panel);
+  }
+  .canvas-card { padding:10px; }
+  canvas { display:block; width:100%; height:auto; border-radius:10px; }
+  .info-card { padding:16px; line-height:1.55; }
+  .section + .section {
+    border-top:1px solid var(--border); margin-top:14px; padding-top:14px;
+  }
+  .label { font-weight:700; margin-bottom:5px; }
+  .value {
+    font-variant-numeric:tabular-nums;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  .note {
+    margin-top:9px; padding:9px 10px; border-radius:9px;
+    background:color-mix(in srgb,var(--plane) 12%,transparent);
+    font-size:13px;
+  }
+  .legend {
+    display:flex; flex-wrap:wrap; gap:12px; margin-top:10px;
+    font-size:13px; color:var(--muted);
+  }
+  .sw { display:inline-block; width:12px; height:3px; margin-right:5px; vertical-align:middle; }
+  .equation {
+    margin-top:16px; padding:13px 15px; border:1px solid var(--border);
+    border-radius:12px; line-height:1.5; background:var(--panel);
+  }
+  @media(max-width:780px) {
+    body { padding:14px; }
+    .controls,.layout { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>KTP: biaxial index ellipsoid</h1>
+  <div class="sub">
+    λ = 1556 nm and T = 20 °C.
+    θ is the polar angle from +z; φ is the azimuth measured from +x.
+  </div>
+
+  <div class="controls">
+    <div class="control">
+      <label for="theta"><span>Polar angle θ</span><span id="thetaText">18°</span></label>
+      <input id="theta" type="range" min="0" max="180" step="1" value="18">
+    </div>
+    <div class="control">
+      <label for="phi"><span>Azimuthal angle φ</span><span id="phiText">0°</span></label>
+      <input id="phi" type="range" min="0" max="360" step="1" value="0">
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="canvas-card">
+      <canvas id="canvas" width="820" height="640" aria-label="Interactive biaxial KTP index ellipsoid with theta and phi controls"></canvas>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--ellipsoid)"></i>index ellipsoid</span>
+        <span><i class="sw" style="background:var(--plane)"></i>plane ⟂ k</span>
+        <span><i class="sw" style="background:var(--ellipse)"></i>intersection ellipse</span>
+        <span><i class="sw" style="background:var(--kvec)"></i>k</span>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <div class="section">
+        <div class="label">Principal indices</div>
+        <div class="value">nₓ = 1.72805538</div>
+        <div class="value">nᵧ = 1.73479791</div>
+        <div class="value">n_z = 1.81563498</div>
+      </div>
+
+      <div class="section">
+        <div class="label">Current propagation direction</div>
+        <div class="value" id="kdir"></div>
+      </div>
+
+      <div class="section">
+        <div class="label">Transverse eigenmodes</div>
+        <div class="value">fast index: <span id="fastValue"></span></div>
+        <div class="value">slow index: <span id="slowValue"></span></div>
+        <div class="note">
+          For biaxial KTP, changing either θ or φ generally changes these two indices.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="equation">
+    <strong>Biaxial calculation:</strong>
+    for each k̂(θ,φ), the optical impermeability tensor
+    diag(1/nₓ², 1/nᵧ², 1/n_z²) is projected onto the plane perpendicular to k̂.
+    The two eigenvalues ρ₁,ρ₂ of that 2×2 transverse matrix give
+    n₁=1/√ρ₁ and n₂=1/√ρ₂.
+    <br><br><strong>Display convention:</strong>
+    eigenvector signs are chosen continuously between slider positions.
+    Since <i>e</i> and −<i>e</i> describe the same polarization axis, this
+    removes nonphysical 180° arrow flips without changing the calculated indices.
+
+  </div>
+
+  <div class="equation">
+    <strong>Reference for refractive-index model:</strong><br>
+    Kato, K., & Takaoka, E. (2002). Sellmeier and thermo-optic dispersion formulas for KTP. Applied Optics, 41(24), 5040–5044. DOI: 10.1364/AO.41.005040
+  </div>
+</div>
+
+<script>
+(() => {
+  const nx=1.728055381158912, ny=1.734797906246379, nz=1.815634979233944;
+  const root=document.documentElement;
+  const cvs=document.getElementById('canvas'), ctx=cvs.getContext('2d');
+  const thSlider=document.getElementById('theta'), phSlider=document.getElementById('phi');
+  const thText=document.getElementById('thetaText'), phText=document.getElementById('phiText');
+  const fastText=document.getElementById('fastValue'), slowText=document.getElementById('slowValue');
+  const kdirText=document.getElementById('kdir');
+
+  const W=cvs.width,H=cvs.height,cx=W*.50,cy=H*.53,S=130;
+  const elev=24*Math.PI/180, az=-48*Math.PI/180;
+
+  function css(name) { return getComputedStyle(root).getPropertyValue(name).trim(); }
+  function dot(a,b) { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
+  function cross(a,b) {
+    return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+  }
+  function norm(v) {
+    const m=Math.hypot(v[0],v[1],v[2]);
+    return [v[0]/m,v[1]/m,v[2]/m];
+  }
+  function add(a,b) { return [a[0]+b[0],a[1]+b[1],a[2]+b[2]]; }
+  function scalev(a,s) { return [a[0]*s,a[1]*s,a[2]*s]; }
+
+  function camera(p) {
+    let [x,y,z]=p;
+    const ca=Math.cos(az),sa=Math.sin(az);
+    const x1=ca*x-sa*y,y1=sa*x+ca*y,z1=z;
+    const ce=Math.cos(elev),se=Math.sin(elev);
+    return [x1,ce*y1-se*z1,se*y1+ce*z1];
+  }
+  function project(p) {
+    const [x,y,z]=camera(p);
+    return [cx+S*x,cy-S*z,y];
+  }
+  function line3(points,color,width=1,alpha=1) {
+    ctx.save(); ctx.globalAlpha=alpha; ctx.strokeStyle=color; ctx.lineWidth=width;
+    ctx.beginPath();
+    points.forEach((p,i)=>{const q=project(p); if(i===0)ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]);});
+    ctx.stroke(); ctx.restore();
+  }
+  function polygon3(points,color,alpha=.15,stroke=true) {
+    ctx.save(); ctx.globalAlpha=alpha; ctx.fillStyle=color;
+    if(stroke) ctx.strokeStyle=color;
+    ctx.beginPath();
+    points.forEach((p,i)=>{const q=project(p); if(i===0)ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]);});
+    ctx.closePath(); ctx.fill(); if(stroke) ctx.stroke(); ctx.restore();
+  }
+  function arrow3(a,b,color,width=2.4) {
+    const p=project(a),q=project(b);
+    ctx.save();ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=width;
+    ctx.beginPath();ctx.moveTo(p[0],p[1]);ctx.lineTo(q[0],q[1]);ctx.stroke();
+    const A=Math.atan2(q[1]-p[1],q[0]-p[0]),L=10;
+    ctx.beginPath();ctx.moveTo(q[0],q[1]);
+    ctx.lineTo(q[0]-L*Math.cos(A-.45),q[1]-L*Math.sin(A-.45));
+    ctx.lineTo(q[0]-L*Math.cos(A+.45),q[1]-L*Math.sin(A+.45));
+    ctx.closePath();ctx.fill();ctx.restore();
+  }
+  function label3(p,text,color) {
+    const q=project(p);ctx.save();ctx.fillStyle=color;ctx.font='16px system-ui,sans-serif';
+    ctx.fillText(text,q[0]+5,q[1]-5);ctx.restore();
+  }
+
+  // Keep eigenvector signs continuous as the sliders move.
+  // Physically, e and -e represent the same polarization axis, but without
+  // this convention a numerical eigensolver can make arrows jump by 180°.
+  let previousFastDir = null;
+  let previousSlowDir = null;
+
+  function transverseModes(k) {
+    // Stable orthonormal transverse basis u,v.
+    let ref=Math.abs(k[2])<.9 ? [0,0,1] : [1,0,0];
+    let u=norm(cross(k,ref));
+    let v=norm(cross(k,u));
+
+    const qx=1/(nx*nx), qy=1/(ny*ny), qz=1/(nz*nz);
+    function etaMul(a) { return [qx*a[0],qy*a[1],qz*a[2]]; }
+
+    const M00=dot(u,etaMul(u));
+    const M01=dot(u,etaMul(v));
+    const M11=dot(v,etaMul(v));
+
+    const tr=M00+M11;
+    const disc=Math.sqrt(Math.max(0,(M00-M11)*(M00-M11)+4*M01*M01));
+    const rhoA=(tr-disc)/2;
+    const rhoB=(tr+disc)/2;
+
+    // Eigenvectors in the u,v basis.
+    function eigvec(rho) {
+      let a,b;
+      if(Math.abs(M01)>1e-14) {
+        a=1; b=(rho-M00)/M01;
+      } else {
+        if(Math.abs(M00-rho)<Math.abs(M11-rho)) { a=1;b=0; }
+        else { a=0;b=1; }
+      }
+      const m=Math.hypot(a,b); a/=m;b/=m;
+      return norm(add(scalev(u,a),scalev(v,b)));
+    }
+
+    const dirA=eigvec(rhoA);
+    const dirB=eigvec(rhoB);
+    const nA=1/Math.sqrt(rhoA);
+    const nB=1/Math.sqrt(rhoB);
+
+    // rho smaller => n larger (slow). Sort explicitly.
+    let fast, slow, fastDir, slowDir;
+    if(nA < nB) {
+      fast=nA; slow=nB; fastDir=dirA; slowDir=dirB;
+    } else {
+      fast=nB; slow=nA; fastDir=dirB; slowDir=dirA;
+    }
+
+    // Eigenvectors have an arbitrary sign. Choose the sign closest to the
+    // direction used in the previous frame so the displayed arrows vary
+    // continuously rather than flipping between e and -e.
+    if(previousFastDir && dot(fastDir, previousFastDir) < 0) {
+      fastDir = scalev(fastDir, -1);
+    }
+    if(previousSlowDir && dot(slowDir, previousSlowDir) < 0) {
+      slowDir = scalev(slowDir, -1);
+    }
+
+    previousFastDir = fastDir.slice();
+    previousSlowDir = slowDir.slice();
+
+    return {fast, slow, fastDir, slowDir};
+  }
+
+  function draw() {
+    const td=Number(thSlider.value),pd=Number(phSlider.value);
+    const th=td*Math.PI/180,ph=pd*Math.PI/180;
+    thText.textContent=td.toFixed(0)+'°'; phText.textContent=pd.toFixed(0)+'°';
+
+    const k=[Math.sin(th)*Math.cos(ph),Math.sin(th)*Math.sin(ph),Math.cos(th)];
+    kdirText.textContent=`k̂ = (${k[0].toFixed(3)}, ${k[1].toFixed(3)}, ${k[2].toFixed(3)})`;
+
+    const modes=transverseModes(k);
+    fastText.textContent=modes.fast.toFixed(8);
+    slowText.textContent=modes.slow.toFixed(8);
+
+    ctx.clearRect(0,0,W,H);
+    const cEll=css('--ellipsoid'),cPlane=css('--plane'),cSec=css('--ellipse'),
+          cK=css('--kvec'),cText=css('--text'),cBorder=css('--border'),
+          cFast=css('--mode1'),cSlow=css('--mode2');
+
+    // Smooth translucent biaxial ellipsoid; no facet strokes.
+    const vBands=28,uBands=56;
+    for(let j=0;j<vBands;j++) {
+      const v1=j*Math.PI/vBands,v2=(j+1)*Math.PI/vBands;
+      for(let i=0;i<uBands;i++) {
+        const u1=i*2*Math.PI/uBands,u2=(i+1)*2*Math.PI/uBands;
+        const p1=[nx*Math.sin(v1)*Math.cos(u1),ny*Math.sin(v1)*Math.sin(u1),nz*Math.cos(v1)];
+        const p2=[nx*Math.sin(v1)*Math.cos(u2),ny*Math.sin(v1)*Math.sin(u2),nz*Math.cos(v1)];
+        const p3=[nx*Math.sin(v2)*Math.cos(u2),ny*Math.sin(v2)*Math.sin(u2),nz*Math.cos(v2)];
+        const p4=[nx*Math.sin(v2)*Math.cos(u1),ny*Math.sin(v2)*Math.sin(u1),nz*Math.cos(v2)];
+        polygon3([p1,p2,p3,p4],cEll,.075,false);
+      }
+    }
+
+    // Plane basis from the two eigenmode directions; both are perpendicular to k.
+    const eF=modes.fastDir,eS=modes.slowDir;
+    const r=1.45,corners=[];
+    [[-r,-r],[r,-r],[r,r],[-r,r]].forEach(([a,b])=>{
+      corners.push([
+        a*eF[0]+b*eS[0],
+        a*eF[1]+b*eS[1],
+        a*eF[2]+b*eS[2]
+      ]);
+    });
+    polygon3(corners,cPlane,.14,true);
+
+    // Exact transverse section ellipse from the two eigenmode semiaxes.
+    const E=[];
+    for(let i=0;i<=240;i++) {
+      const t=i*2*Math.PI/240;
+      E.push([
+        modes.fast*Math.cos(t)*eF[0]+modes.slow*Math.sin(t)*eS[0],
+        modes.fast*Math.cos(t)*eF[1]+modes.slow*Math.sin(t)*eS[1],
+        modes.fast*Math.cos(t)*eF[2]+modes.slow*Math.sin(t)*eS[2]
+      ]);
+    }
+    line3(E,cSec,3,1);
+
+    const L=2.1;
+    line3([[-L,0,0],[L,0,0]],cBorder,1,.9);
+    line3([[0,-L,0],[0,L,0]],cBorder,1,.9);
+    line3([[0,0,-L],[0,0,L]],cBorder,1,.9);
+    label3([L,0,0],'x',cText);label3([0,L,0],'y',cText);label3([0,0,L],'z',cText);
+
+    arrow3([0,0,0],[2.18*k[0],2.18*k[1],2.18*k[2]],cK,3);
+    label3([2.26*k[0],2.26*k[1],2.26*k[2]],'k',cK);
+
+    arrow3([0,0,0],scalev(eF,modes.fast),cFast,2);
+    label3(scalev(eF,1.07*modes.fast),'n_fast',cFast);
+
+    arrow3([0,0,0],scalev(eS,modes.slow),cSlow,2);
+    label3(scalev(eS,1.07*modes.slow),'n_slow',cSlow);
+  }
+
+  thSlider.addEventListener('input',draw);
+  phSlider.addEventListener('input',draw);
+  draw();
+})();
+</script>
+</body>
+</html>
