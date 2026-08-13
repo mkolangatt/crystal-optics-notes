@@ -3,70 +3,234 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>KTP Index Ellipsoid vs Theta</title>
+<title>KTP Index Ellipsoid – Transparent Surface</title>
 <style>
-  body{font-family:Arial,sans-serif;margin:24px;background:#fff;color:#111}
-  .wrap{max-width:1000px;margin:auto}
-  .controls{display:flex;gap:20px;align-items:center;margin-bottom:12px}
-  input[type=range]{width:520px}
-  canvas{width:100%;max-width:850px;border:1px solid #bbb;border-radius:10px}
-  .info{margin-top:12px;line-height:1.5}
+  :root{
+    --text:#161616; --muted:#666; --border:#c8c8c8;
+    --surface:#6aa57a; --plane:#6f9ed6; --ellipse:#1666c5;
+    --k:#111; --axis:#555; --semi:#b3261e;
+  }
+  body{font-family:Arial,Helvetica,sans-serif;margin:24px;background:#fff;color:var(--text)}
+  .wrap{max-width:1020px;margin:auto}
+  h2{margin:0 0 5px}
+  .sub{color:var(--muted);margin-bottom:16px}
+  .controls{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:12px 0 16px}
+  input[type=range]{width:min(540px,72vw)}
+  canvas{width:100%;max-width:900px;height:auto;border:1px solid var(--border);border-radius:12px;background:#fff}
+  .info{margin-top:12px;display:flex;gap:26px;flex-wrap:wrap;line-height:1.5;font-size:14px}
+  .key{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:13px;color:#444}
+  .sw{display:inline-block;width:20px;height:10px;margin-right:5px;vertical-align:middle}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h2>KTP index ellipsoid and transverse section</h2>
-<div class="controls">
-<label>θ = <b id="tv">18°</b></label>
-<input id="theta" type="range" min="0" max="90" step="1" value="18">
-<span>φ = 0°</span>
+  <h2>KTP index ellipsoid and transverse section</h2>
+  <div class="sub">Kato–Takaoka indices, λ = 1556 nm, T = 20 °C, φ = 0°</div>
+
+  <div class="controls">
+    <label>Polar angle θ = <b id="tv">18°</b></label>
+    <input id="theta" type="range" min="0" max="90" step="1" value="18" aria-label="Polar angle theta">
+    <span>φ = 0°</span>
+  </div>
+
+  <canvas id="c" width="900" height="650"></canvas>
+
+  <div class="key">
+    <span><i class="sw" style="background:rgba(106,165,122,.40)"></i>transparent index-ellipsoid surface</span>
+    <span><i class="sw" style="background:rgba(111,158,214,.35)"></i>plane ⟂ k</span>
+    <span><i class="sw" style="background:#1666c5;height:3px"></i>intersection ellipse</span>
+  </div>
+
+  <div class="info">
+    <div>
+      <b>Principal indices</b><br>
+      n<sub>x</sub> = 1.728055<br>
+      n<sub>y</sub> = 1.734798<br>
+      n<sub>z</sub> = 1.815635
+    </div>
+    <div>
+      <b>Current transverse section</b><br>
+      one semiaxis = n<sub>y</sub> = 1.734798<br>
+      other semiaxis n<sub>xz</sub>(θ) = <span id="nv"></span>
+    </div>
+  </div>
 </div>
-<canvas id="c" width="850" height="620"></canvas>
-<div class="info">
-Kato–Takaoka at 1556 nm, 20 °C:
-n<sub>x</sub>=1.728055, n<sub>y</sub>=1.734798, n<sub>z</sub>=1.815635.
-&nbsp; n<sub>xz</sub>(θ)=<span id="nv"></span>.
-</div>
-</div>
+
 <script>
-const nx=1.728055381, ny=1.734797906, nz=1.815634979;
-const cv=document.getElementById("c"),ctx=cv.getContext("2d");
-const sl=document.getElementById("theta"),tv=document.getElementById("tv"),nv=document.getElementById("nv");
-const W=cv.width,H=cv.height,cx=W*.5,cy=H*.53,S=135;
-const elev=24*Math.PI/180, az=-48*Math.PI/180;
-function cam(p){let[x,y,z]=p,ca=Math.cos(az),sa=Math.sin(az);
- let x1=ca*x-sa*y,y1=sa*x+ca*y,z1=z,ce=Math.cos(elev),se=Math.sin(elev);
- return [x1,ce*y1-se*z1,se*y1+ce*z1];}
-function pr(p){let q=cam(p);return[cx+S*q[0],cy-S*q[2]]}
-function line(ps,col,w=1,a=1){ctx.save();ctx.globalAlpha=a;ctx.strokeStyle=col;ctx.lineWidth=w;
- ctx.beginPath();ps.forEach((p,i)=>{let q=pr(p);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.stroke();ctx.restore()}
-function poly(ps,col,a=.15){ctx.save();ctx.globalAlpha=a;ctx.fillStyle=col;ctx.strokeStyle=col;ctx.beginPath();
- ps.forEach((p,i)=>{let q=pr(p);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.closePath();ctx.fill();ctx.stroke();ctx.restore()}
-function arrow(a,b,col){let p=pr(a),q=pr(b);ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=2.5;
- ctx.beginPath();ctx.moveTo(...p);ctx.lineTo(...q);ctx.stroke();let A=Math.atan2(q[1]-p[1],q[0]-p[0]),L=10;
- ctx.beginPath();ctx.moveTo(...q);ctx.lineTo(q[0]-L*Math.cos(A-.45),q[1]-L*Math.sin(A-.45));
- ctx.lineTo(q[0]-L*Math.cos(A+.45),q[1]-L*Math.sin(A+.45));ctx.closePath();ctx.fill()}
-function label(p,t,col="#111"){let q=pr(p);ctx.fillStyle=col;ctx.font="16px Arial";ctx.fillText(t,q[0]+5,q[1]-5)}
-function draw(td){
- ctx.clearRect(0,0,W,H); let th=td*Math.PI/180,k=[Math.sin(th),0,Math.cos(th)];
- let e1=[0,1,0],e2=[Math.cos(th),0,-Math.sin(th)];
- let ne=1/Math.sqrt(Math.cos(th)**2/nx**2+Math.sin(th)**2/nz**2); nv.textContent=ne.toFixed(6);
- // ellipsoid wireframe
- for(let j=1;j<9;j++){let v=j*Math.PI/9,ps=[];for(let i=0;i<=120;i++){let u=i*2*Math.PI/120;
- ps.push([nx*Math.sin(v)*Math.cos(u),ny*Math.sin(v)*Math.sin(u),nz*Math.cos(v)])}line(ps,"#4c78a8",1,.4)}
- for(let j=0;j<12;j++){let u=j*2*Math.PI/12,ps=[];for(let i=0;i<=80;i++){let v=i*Math.PI/80;
- ps.push([nx*Math.sin(v)*Math.cos(u),ny*Math.sin(v)*Math.sin(u),nz*Math.cos(v)])}line(ps,"#4c78a8",1,.4)}
- // transverse plane
- let r=1.45,c=[];[[-r,-r],[r,-r],[r,r],[-r,r]].forEach(([a,b])=>c.push([a*e1[0]+b*e2[0],a*e1[1]+b*e2[1],a*e1[2]+b*e2[2]]));poly(c,"#f28e2b");
- // intersection ellipse
- let E=[];for(let i=0;i<=220;i++){let t=i*2*Math.PI/220;E.push([ny*Math.cos(t)*e1[0]+ne*Math.sin(t)*e2[0],
- ny*Math.cos(t)*e1[1]+ne*Math.sin(t)*e2[1],ny*Math.cos(t)*e1[2]+ne*Math.sin(t)*e2[2]])}line(E,"#2a9d66",3);
- let L=2.05;line([[-L,0,0],[L,0,0]],"#555");line([[0,-L,0],[0,L,0]],"#555");line([[0,0,-L],[0,0,L]],"#555");
- label([L,0,0],"x");label([0,L,0],"y");label([0,0,L],"z");
- arrow([0,0,0],[2.15*k[0],0,2.15*k[2]],"#7b5bb5");label([2.23*k[0],0,2.23*k[2]],"k","#7b5bb5");
- arrow([0,0,0],[0,ny,0],"#2a9d66");label([0,1.08*ny,0],"n_y","#2a9d66");
- arrow([0,0,0],[ne*e2[0],0,ne*e2[2]],"#2a9d66");label([1.07*ne*e2[0],0,1.07*ne*e2[2]],"n_xz(θ)","#2a9d66");
-}
-sl.oninput=()=>{tv.textContent=sl.value+"°";draw(+sl.value)};draw(+sl.value);
+(() => {
+  const nx=1.728055381, ny=1.734797906, nz=1.815634979;
+  const cv=document.getElementById("c"), ctx=cv.getContext("2d");
+  const sl=document.getElementById("theta"), tv=document.getElementById("tv"), nv=document.getElementById("nv");
+  const W=cv.width,H=cv.height,cx=W*.48,cy=H*.54,S=142;
+
+  // Fixed camera
+  const elev=24*Math.PI/180, az=-48*Math.PI/180;
+
+  function camera(p){
+    let [x,y,z]=p;
+    const ca=Math.cos(az),sa=Math.sin(az);
+    const x1=ca*x-sa*y, y1=sa*x+ca*y, z1=z;
+    const ce=Math.cos(elev),se=Math.sin(elev);
+    return [x1, ce*y1-se*z1, se*y1+ce*z1];
+  }
+  function project(p){
+    const q=camera(p);
+    return [cx+S*q[0], cy-S*q[2], q[1]];
+  }
+
+  function line3(points,color,width=1,alpha=1){
+    ctx.save(); ctx.globalAlpha=alpha; ctx.strokeStyle=color; ctx.lineWidth=width;
+    ctx.beginPath();
+    points.forEach((p,i)=>{const q=project(p); i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]);});
+    ctx.stroke(); ctx.restore();
+  }
+
+  function polygon3(points,fill,stroke,alpha=.2){
+    ctx.save(); ctx.globalAlpha=alpha; ctx.fillStyle=fill; ctx.strokeStyle=stroke; ctx.lineWidth=.6;
+    ctx.beginPath();
+    points.forEach((p,i)=>{const q=project(p); i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]);});
+    ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+
+  function arrow3(a,b,color,width=2.4){
+    const p=project(a),q=project(b);
+    ctx.save(); ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=width;
+    ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); ctx.stroke();
+    const ang=Math.atan2(q[1]-p[1],q[0]-p[0]), L=10;
+    ctx.beginPath(); ctx.moveTo(q[0],q[1]);
+    ctx.lineTo(q[0]-L*Math.cos(ang-.45),q[1]-L*Math.sin(ang-.45));
+    ctx.lineTo(q[0]-L*Math.cos(ang+.45),q[1]-L*Math.sin(ang+.45));
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+
+  function label3(p,text,color="#111"){
+    const q=project(p);
+    ctx.save(); ctx.fillStyle=color; ctx.font="16px Arial"; ctx.fillText(text,q[0]+5,q[1]-5); ctx.restore();
+  }
+
+  function ellipsoidPoint(u,v){
+    return [nx*Math.sin(v)*Math.cos(u), ny*Math.sin(v)*Math.sin(u), nz*Math.cos(v)];
+  }
+
+  function drawEllipsoidSurface(){
+    // Render many filled quadrilateral patches with NO edge strokes.
+    // Depth-sort patches for a translucent 3D-surface appearance.
+    const Nu=52, Nv=28, patches=[];
+    for(let j=0;j<Nv;j++){
+      const v0=j*Math.PI/Nv, v1=(j+1)*Math.PI/Nv;
+      for(let i=0;i<Nu;i++){
+        const u0=i*2*Math.PI/Nu, u1=(i+1)*2*Math.PI/Nu;
+        const pts=[
+          ellipsoidPoint(u0,v0), ellipsoidPoint(u1,v0),
+          ellipsoidPoint(u1,v1), ellipsoidPoint(u0,v1)
+        ];
+        const depth=pts.reduce((s,p)=>s+camera(p)[1],0)/4;
+        patches.push({pts,depth});
+      }
+    }
+    patches.sort((a,b)=>a.depth-b.depth);
+
+    patches.forEach(({pts})=>{
+      // very subtle depth-dependent shading, without mesh outlines
+      const d=pts.reduce((s,p)=>s+camera(p)[1],0)/4;
+      const shade=Math.max(0,Math.min(1,(d+2.0)/4.0));
+      const r=Math.round(83+30*shade), g=Math.round(143+28*shade), b=Math.round(101+28*shade);
+      ctx.save();
+      ctx.globalAlpha=.105;
+      ctx.fillStyle=`rgb(${r},${g},${b})`;
+      ctx.beginPath();
+      pts.forEach((p,i)=>{
+        const q=project(p);
+        if(i===0) ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]);
+      });
+      ctx.closePath(); ctx.fill(); ctx.restore();
+    });
+
+    // soft silhouette only, to make the continuous surface readable
+    const outline=[];
+    for(let i=0;i<=240;i++){
+      const u=i*2*Math.PI/240;
+      // visual equatorial contour; intentionally subtle
+      outline.push(ellipsoidPoint(u,Math.PI/2));
+    }
+    line3(outline,"rgba(55,110,72,.35)",1.0,.45);
+  }
+
+  function draw(td){
+    ctx.clearRect(0,0,W,H);
+
+    const th=td*Math.PI/180;
+    const k=[Math.sin(th),0,Math.cos(th)];
+    const e1=[0,1,0];
+    const e2=[Math.cos(th),0,-Math.sin(th)];
+    const ne=1/Math.sqrt(Math.cos(th)**2/nx**2 + Math.sin(th)**2/nz**2);
+    nv.textContent=ne.toFixed(6);
+
+    // principal axes behind surface
+    const L=2.08;
+    line3([[-L,0,0],[L,0,0]],"#777",1,.55);
+    line3([[0,-L,0],[0,L,0]],"#777",1,.55);
+    line3([[0,0,-L],[0,0,L]],"#777",1,.55);
+
+    // transparent smooth ellipsoid
+    drawEllipsoidSurface();
+
+    // plane through origin perpendicular to k
+    const r=1.48, corners=[];
+    [[-r,-r],[r,-r],[r,r],[-r,r]].forEach(([a,b])=>{
+      corners.push([
+        a*e1[0]+b*e2[0],
+        a*e1[1]+b*e2[1],
+        a*e1[2]+b*e2[2]
+      ]);
+    });
+    polygon3(corners,"#6f9ed6","#5c8ec7",.22);
+
+    // exact plane–ellipsoid intersection ellipse
+    const E=[];
+    for(let i=0;i<=280;i++){
+      const t=i*2*Math.PI/280;
+      E.push([
+        ny*Math.cos(t)*e1[0]+ne*Math.sin(t)*e2[0],
+        ny*Math.cos(t)*e1[1]+ne*Math.sin(t)*e2[1],
+        ny*Math.cos(t)*e1[2]+ne*Math.sin(t)*e2[2]
+      ]);
+    }
+    line3(E,"#1666c5",3,1);
+
+    // axis labels
+    label3([L,0,0],"x"); label3([0,L,0],"y"); label3([0,0,L],"z");
+
+    // k vector
+    arrow3([0,0,0],[2.18*k[0],0,2.18*k[2]],"#111",2.7);
+    label3([2.28*k[0],0,2.28*k[2]],"k","#111");
+
+    // ellipse semiaxes
+    arrow3([0,0,0],[0,ny,0],"#b3261e",2.2);
+    label3([0,1.08*ny,0],"n_y","#b3261e");
+
+    arrow3([0,0,0],[ne*e2[0],0,ne*e2[2]],"#183f9e",2.2);
+    label3([1.07*ne*e2[0],0,1.07*ne*e2[2]],"n_xz(θ)","#183f9e");
+
+    // theta arc from +z toward k
+    const arc=[], rr=.72;
+    for(let i=0;i<=50;i++){
+      const a=th*i/50;
+      arc.push([rr*Math.sin(a),0,rr*Math.cos(a)]);
+    }
+    line3(arc,"#111",1.8,.9);
+    const am=th/2;
+    label3([rr*Math.sin(am),0,rr*Math.cos(am)],`θ=${td.toFixed(0)}°`,"#111");
+  }
+
+  function update(){
+    const v=Number(sl.value);
+    tv.textContent=v.toFixed(0)+"°";
+    draw(v);
+  }
+  sl.addEventListener("input",update);
+  update();
+})();
 </script>
-</body></html>
+</body>
+</html>
