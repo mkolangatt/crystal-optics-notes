@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>5 mol% MgO:LiNbO3 uniaxial index ellipsoid — theta and phi</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: light-dark(#ffffff,#111318);
+    --panel: light-dark(#f7f8fa,#191c22);
+    --text: light-dark(#15171a,#f2f3f5);
+    --muted: light-dark(#5f6670,#aeb4be);
+    --border: light-dark(#d8dde5,#353a44);
+    --ellipsoid: #4c78a8;
+    --plane: #f28e2b;
+    --ellipse: #2a9d66;
+    --kvec: #7b5bb5;
+    --ordinary: #2a9d66;
+    --extra: #d97706;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin-bottom: 18px; line-height: 1.45; }
+  .controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    margin-bottom: 16px;
+  }
+  .control label {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-weight: 650;
+    margin-bottom: 8px;
+  }
+  input[type=range] { width: 100%; }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) 270px;
+    gap: 16px;
+    align-items: start;
+  }
+  .canvas-card, .info-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+  .canvas-card { padding: 10px; }
+  canvas { display:block; width:100%; height:auto; border-radius:10px; }
+  .info-card { padding: 16px; line-height: 1.55; }
+  .section + .section {
+    border-top: 1px solid var(--border);
+    margin-top: 14px;
+    padding-top: 14px;
+  }
+  .label { font-weight:700; margin-bottom:5px; }
+  .value {
+    font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .phi-note {
+    margin-top: 8px;
+    padding: 9px 10px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--ellipse) 12%, transparent);
+    font-size: 13px;
+  }
+  .legend {
+    display:flex; flex-wrap:wrap; gap:12px; margin-top:10px;
+    font-size:13px; color:var(--muted);
+  }
+  .sw { display:inline-block; width:12px; height:3px; margin-right:5px; vertical-align:middle; }
+  .equation {
+    margin-top: 16px;
+    padding: 13px 15px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    line-height: 1.5;
+    background: var(--panel);
+  }
+  @media(max-width: 780px) {
+    body { padding: 14px; }
+    .controls, .layout { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>5 mol% MgO:LiNbO₃ — uniaxial index ellipsoid</h1>
+  <div class="sub">
+    λ = 1556 nm and T = 20 °C. 
+    θ is the polar angle from +z; φ is the azimuth measured from +x.
+  </div>
+
+  <div class="controls">
+    <div class="control">
+      <label for="theta"><span>Polar angle θ</span><span id="thetaText">30°</span></label>
+      <input id="theta" type="range" min="0" max="180" step="1" value="30">
+    </div>
+    <div class="control">
+      <label for="phi"><span>Azimuthal angle φ</span><span id="phiText">0°</span></label>
+      <input id="phi" type="range" min="0" max="360" step="1" value="0">
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="canvas-card">
+      <canvas id="canvas" width="820" height="640" aria-label="Interactive uniaxial LiNbO3 index ellipsoid with propagation vector and transverse plane"></canvas>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--ellipsoid)"></i>index ellipsoid</span>
+        <span><i class="sw" style="background:var(--plane)"></i>plane ⟂ k</span>
+        <span><i class="sw" style="background:var(--ellipse)"></i>intersection ellipse</span>
+        <span><i class="sw" style="background:var(--kvec)"></i>k</span>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <div class="section">
+        <div class="label">Principal indices</div>
+        <div>n<sub>x</sub> = n<sub>y</sub> = n<sub>o</sub></div>
+        <div class="value">nₒ = 2.20811465</div>
+        <div class="value">nₑ = 2.12921679</div>
+      </div>
+
+      <div class="section">
+        <div class="label">Current direction</div>
+        <div class="value" id="kdir"></div>
+      </div>
+
+      <div class="section">
+        <div class="label">Transverse-section indices</div>
+        <div class="value">ordinary: <span id="noValue">2.20811465</span></div>
+        <div class="value">extraordinary: <span id="neffValue"></span></div>
+        <div class="phi-note">
+          Change φ while holding θ fixed: the plane and k rotate around z, but both refractive-index values remain unchanged.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="equation">
+    <strong>Uniaxial result:</strong>
+    n<sub>o</sub> is constant and
+    1 / n<sub>eff</sub>²(θ) =
+    cos²θ / n<sub>o</sub>² + sin²θ / n<sub>e</sub>².
+    There is no φ term because n<sub>x</sub> = n<sub>y</sub>.
+    <br><br>
+    <strong>Why this is labeled 5 mol% MgO:LiNbO₃ rather than PPLN:</strong>
+    this visualization uses the linear refractive indices and index ellipsoid of 5 mol% MgO-doped congruent LiNbO₃, consistent with the refractive-index model used here.
+    Periodic poling does not change the index ellipsoid used here. In a PPLN device, poling enters later
+    through quasi-phase matching via the grating vector 2π/Λ and through the periodic sign reversal of
+    the relevant χ<sup>(2)</sup> coefficient.
+  </div>
+
+  <div class="equation">
+    <strong>Reference for refractive-index model:</strong><br>
+    Gayer, O., Sacks, Z., Galun, E., & Arie, A. (2008). Temperature and wavelength dependent refractive index equations for MgO-doped congruent and stoichiometric LiNbO₃. Applied Physics B, 91, 343–348. DOI: 10.1007/s00340-008-2998-2
+  </div>
+</div>
+
+<script>
+(() => {
+  const no = 2.208114650341435;
+  const ne = 2.129216790384933;
+
+  const root = document.documentElement;
+  const cvs = document.getElementById('canvas');
+  const ctx = cvs.getContext('2d');
+  const thSlider = document.getElementById('theta');
+  const phSlider = document.getElementById('phi');
+  const thText = document.getElementById('thetaText');
+  const phText = document.getElementById('phiText');
+  const neffText = document.getElementById('neffValue');
+  const kdirText = document.getElementById('kdir');
+
+  const W=cvs.width, H=cvs.height, cx=W*0.50, cy=H*0.53, S=130;
+  const elev=24*Math.PI/180, az=-48*Math.PI/180;
+
+  function css(name) {
+    return getComputedStyle(root).getPropertyValue(name).trim();
+  }
+
+  function camera(p) {
+    let [x,y,z]=p;
+    const ca=Math.cos(az), sa=Math.sin(az);
+    const x1=ca*x-sa*y, y1=sa*x+ca*y, z1=z;
+    const ce=Math.cos(elev), se=Math.sin(elev);
+    return [x1, ce*y1-se*z1, se*y1+ce*z1];
+  }
+
+  function project(p) {
+    const [x,y,z]=camera(p);
+    return [cx+S*x, cy-S*z, y];
+  }
+
+  function line3(points, color, width=1, alpha=1) {
+    ctx.save();
+    ctx.globalAlpha=alpha;
+    ctx.strokeStyle=color;
+    ctx.lineWidth=width;
+    ctx.beginPath();
+    points.forEach((p,i) => {
+      const q=project(p);
+      if(i===0) ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]);
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function polygon3(points, color, alpha=.16) {
+    ctx.save();
+    ctx.globalAlpha=alpha;
+    ctx.fillStyle=color;
+    ctx.strokeStyle=color;
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    points.forEach((p,i) => {
+      const q=project(p);
+      if(i===0) ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]);
+    });
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function fillPolygon3(points, color, alpha=.10) {
+    ctx.save();
+    ctx.globalAlpha=alpha;
+    ctx.fillStyle=color;
+    ctx.beginPath();
+    points.forEach((p,i) => {
+      const q=project(p);
+      if(i===0) ctx.moveTo(q[0],q[1]); else ctx.lineTo(q[0],q[1]);
+    });
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function arrow3(a,b,color,width=2.4) {
+    const p=project(a), q=project(b);
+    ctx.save();
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=width;
+    ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); ctx.stroke();
+    const A=Math.atan2(q[1]-p[1],q[0]-p[0]), L=10;
+    ctx.beginPath();
+    ctx.moveTo(q[0],q[1]);
+    ctx.lineTo(q[0]-L*Math.cos(A-.45),q[1]-L*Math.sin(A-.45));
+    ctx.lineTo(q[0]-L*Math.cos(A+.45),q[1]-L*Math.sin(A+.45));
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function label3(p,text,color) {
+    const q=project(p);
+    ctx.save(); ctx.fillStyle=color; ctx.font='16px system-ui, sans-serif';
+    ctx.fillText(text,q[0]+5,q[1]-5); ctx.restore();
+  }
+
+  function cross(a,b) {
+    return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+  }
+  function norm(v) {
+    const m=Math.hypot(v[0],v[1],v[2]);
+    return [v[0]/m,v[1]/m,v[2]/m];
+  }
+
+  function draw() {
+    const td=Number(thSlider.value), pd=Number(phSlider.value);
+    const th=td*Math.PI/180, ph=pd*Math.PI/180;
+
+    thText.textContent=td.toFixed(0)+'°';
+    phText.textContent=pd.toFixed(0)+'°';
+
+    const k=[Math.sin(th)*Math.cos(ph), Math.sin(th)*Math.sin(ph), Math.cos(th)];
+    const neff=1/Math.sqrt(Math.cos(th)**2/no**2 + Math.sin(th)**2/ne**2);
+    neffText.textContent=neff.toFixed(8);
+    kdirText.textContent=`k̂ = (${k[0].toFixed(3)}, ${k[1].toFixed(3)}, ${k[2].toFixed(3)})`;
+
+    ctx.clearRect(0,0,W,H);
+
+    const cEll=css('--ellipsoid'), cPlane=css('--plane'), cSec=css('--ellipse'),
+          cK=css('--kvec'), cText=css('--text'), cBorder=css('--border');
+
+    // Uniaxial ellipsoid: x,y semiaxes = no; z semiaxis = ne.
+    // Draw as a smooth translucent surface instead of a wire mesh.
+    const vBands = 28, uBands = 56;
+    for(let j=0;j<vBands;j++) {
+      const v1=j*Math.PI/vBands;
+      const v2=(j+1)*Math.PI/vBands;
+      for(let i=0;i<uBands;i++) {
+        const u1=i*2*Math.PI/uBands;
+        const u2=(i+1)*2*Math.PI/uBands;
+        const p1=[no*Math.sin(v1)*Math.cos(u1), no*Math.sin(v1)*Math.sin(u1), ne*Math.cos(v1)];
+        const p2=[no*Math.sin(v1)*Math.cos(u2), no*Math.sin(v1)*Math.sin(u2), ne*Math.cos(v1)];
+        const p3=[no*Math.sin(v2)*Math.cos(u2), no*Math.sin(v2)*Math.sin(u2), ne*Math.cos(v2)];
+        const p4=[no*Math.sin(v2)*Math.cos(u1), no*Math.sin(v2)*Math.sin(u1), ne*Math.cos(v2)];
+        fillPolygon3([p1,p2,p3,p4],cEll,.085);
+      }
+    }
+
+    // Basis of plane perpendicular to k.
+    // e_o is azimuthal, always perpendicular to both z and k.
+    let eo;
+    if (Math.sin(th) < 1e-8) {
+      eo=[-Math.sin(ph),Math.cos(ph),0];
+    } else {
+      eo=norm([-Math.sin(ph),Math.cos(ph),0]);
+    }
+    const ee=norm(cross(k,eo));
+
+    // Plane patch
+    const r=1.45, corners=[];
+    [[-r,-r],[r,-r],[r,r],[-r,r]].forEach(([a,b]) => {
+      corners.push([
+        a*eo[0]+b*ee[0],
+        a*eo[1]+b*ee[1],
+        a*eo[2]+b*ee[2]
+      ]);
+    });
+    polygon3(corners,cPlane,.15);
+
+    // Ellipse section: ordinary semiaxis no, extraordinary semiaxis neff.
+    const E=[];
+    for(let i=0;i<=240;i++) {
+      const t=i*2*Math.PI/240;
+      E.push([
+        no*Math.cos(t)*eo[0] + neff*Math.sin(t)*ee[0],
+        no*Math.cos(t)*eo[1] + neff*Math.sin(t)*ee[1],
+        no*Math.cos(t)*eo[2] + neff*Math.sin(t)*ee[2]
+      ]);
+    }
+    line3(E,cSec,3,1);
+
+    // Principal axes
+    const L=2.1;
+    line3([[-L,0,0],[L,0,0]],cBorder,1,.9);
+    line3([[0,-L,0],[0,L,0]],cBorder,1,.9);
+    line3([[0,0,-L],[0,0,L]],cBorder,1,.9);
+    label3([L,0,0],'x',cText);
+    label3([0,L,0],'y',cText);
+    label3([0,0,L],'z',cText);
+
+    // k and section semiaxes
+    arrow3([0,0,0],[2.18*k[0],2.18*k[1],2.18*k[2]],cK,3);
+    label3([2.26*k[0],2.26*k[1],2.26*k[2]],'k',cK);
+
+    arrow3([0,0,0],[no*eo[0],no*eo[1],no*eo[2]],cSec,2);
+    label3([1.07*no*eo[0],1.07*no*eo[1],1.07*no*eo[2]],'nₒ',cSec);
+
+    arrow3([0,0,0],[neff*ee[0],neff*ee[1],neff*ee[2]],cSec,2);
+    label3([1.07*neff*ee[0],1.07*neff*ee[1],1.07*neff*ee[2]],'nₑ(θ)',cSec);
+  }
+
+  thSlider.addEventListener('input',draw);
+  phSlider.addEventListener('input',draw);
+  draw();
+})();
+</script>
+</body>
+</html>
