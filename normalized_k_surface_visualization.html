@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Normalized wave-vector surfaces: biaxial, uniaxial, isotropic classification</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: #111318;
+    color: #f2f3f5;
+    margin: 0;
+    padding: 24px 32px;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #aeb4be; font-size: 14px; margin-bottom: 20px; }
+  .layout {
+    display: flex;
+    gap: 28px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .left-col { flex: 1 1 560px; min-width: 480px; }
+  .right-col { flex: 0 0 300px; }
+  .sliders {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding: 14px 18px;
+    background: #191c22;
+    border-radius: 10px;
+  }
+  .slider-row { display: flex; align-items: center; gap: 12px; }
+  .slider-row label { width: 26px; font-weight: 600; }
+  .slider-row input[type=range] { flex: 1; }
+  .slider-row span { width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  #plot { width: 100%; height: 460px; }
+  .status {
+    margin-top: 8px;
+    font-size: 14px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: #1b2638;
+    display: inline-block;
+  }
+  .diagram-box {
+    background: #191c22;
+    border: 1px solid #353a44;
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .diagram-box h3 { margin-top: 0; font-size: 15px; }
+  .diagram-box p { font-size: 13px; line-height: 1.5; color: #d5d8de; }
+  .legend-dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    margin-right: 6px; vertical-align: middle;
+  }
+
+  .sheet-controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .sheet-controls label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border: 1px solid #353a44;
+    border-radius: 8px;
+    background: #191c22;
+    color: #f2f3f5;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .sheet-controls input {
+    accent-color: #7aa2f7;
+  }
+</style>
+</head>
+<body>
+
+<h1>Normalized wave-vector surfaces: biaxial / uniaxial / isotropic</h1>
+<div class="subtitle">Move n₁, n₂, n₃ to see how the principal indices determine the two polarization-eigenmode sheets and the optic axes.</div>
+
+<div class="layout">
+  <div class="left-col">
+    <div class="sliders">
+      <div class="slider-row"><label>n1</label><input type="range" id="n1" min="1.30" max="2.20" step="0.01" value="1.72"><span id="n1v">1.72</span></div>
+      <div class="slider-row"><label>n2</label><input type="range" id="n2" min="1.30" max="2.20" step="0.01" value="2.20"><span id="n2v">2.20</span></div>
+      <div class="slider-row"><label>n3</label><input type="range" id="n3" min="1.30" max="2.20" step="0.01" value="1.30"><span id="n3v">1.30</span></div>
+    </div>
+
+    <div style="margin-top:8px;font-size:12px;color:#aeb4be;">
+      All sheet views use the same fixed axis scale so shape differences are directly comparable.
+    </div>
+    <div class="sheet-controls" role="radiogroup" aria-label="Sheet visibility">
+      <label><input type="radio" name="sheetView" value="both" checked> Both sheets</label>
+      <label><input type="radio" name="sheetView" value="green"> Green only</label>
+      <label><input type="radio" name="sheetView" value="orange"> Orange only</label>
+    </div>
+    <div id="plot"></div>
+    <div class="status" id="statusBox">—</div>
+  </div>
+
+  <div class="right-col">
+    <div class="diagram-box">
+      <h3>&theta;, &phi; convention</h3>
+      <svg viewBox="0 0 260 260" width="100%" height="220">
+        <!-- axes -->
+        <line x1="130" y1="230" x2="130" y2="20" stroke="#d5d8de" stroke-width="1.5"/>
+        <polygon points="130,20 125,30 135,30" fill="#d5d8de"/>
+        <text x="138" y="24" font-size="13" fill="#d5d8de">z</text>
+
+        <line x1="130" y1="180" x2="230" y2="215" stroke="#d5d8de" stroke-width="1.5"/>
+        <polygon points="230,215 219,213 224,206" fill="#d5d8de"/>
+        <text x="234" y="222" font-size="13" fill="#d5d8de">y</text>
+
+        <line x1="130" y1="180" x2="40" y2="215" stroke="#d5d8de" stroke-width="1.5"/>
+        <polygon points="40,215 51,213 46,206" fill="#d5d8de"/>
+        <text x="18" y="228" font-size="13" fill="#d5d8de">x</text>
+
+        <!-- direction vector -->
+        <line x1="130" y1="180" x2="188" y2="70" stroke="#D85A30" stroke-width="2.4"/>
+        <circle cx="188" cy="70" r="3.5" fill="#D85A30"/>
+        <text x="192" y="66" font-size="13" fill="#D85A30">k direction</text>
+
+        <!-- projection onto xy plane -->
+        <line x1="130" y1="180" x2="188" y2="196" stroke="#7F77DD" stroke-width="1.6" stroke-dasharray="3,3"/>
+        <line x1="188" y1="70" x2="188" y2="196" stroke="#8b929d" stroke-width="1" stroke-dasharray="2,3"/>
+
+        <!-- theta arc: from z-axis down to k direction -->
+        <path d="M 130 150 A 30 30 0 0 1 165 100" fill="none" stroke="#1D9E75" stroke-width="1.6"/>
+        <text x="150" y="122" font-size="13" fill="#1D9E75">&theta;</text>
+
+        <!-- phi arc: in xy-plane from x-axis to projection -->
+        <path d="M 100 197 A 30 30 0 0 0 175 194" fill="none" stroke="#3A7BD5" stroke-width="1.6"/>
+        <text x="140" y="216" font-size="13" fill="#3A7BD5">&phi;</text>
+
+        <text x="128" y="192" font-size="11" fill="#aeb4be">O</text>
+      </svg>
+      <p>
+        <b>&theta;</b> (polar angle): measured down from the <b>z</b>-axis to the propagation direction <b>k</b>.<br><br>
+        <b>&phi;</b> (azimuthal angle): measured around the <b>z</b>-axis, within the <b>xy</b>-plane, from the <b>x</b>-axis to the projection of <b>k</b>.<br><br>
+        Direction cosines: a = sin&theta;cos&phi;, b = sin&theta;sin&phi;, c = cos&theta;.
+      </p>
+    </div>
+
+
+    <div class="diagram-box" style="margin-top:14px">
+      <h3>What is being plotted?</h3>
+      <p>
+        Each surface is a constant-frequency wave-vector surface, normalized by ω/c:
+        <b>k/(ω/c) = n&nbsp;k̂</b>. The radial distance therefore equals the allowed refractive
+        index for that propagation direction.
+        <br><br>
+        This is <b>not</b> the index ellipsoid. The index ellipsoid is the geometric construction
+        used to obtain the two allowed refractive indices for a chosen direction; this plot collects
+        those allowed indices over all directions to build the two complete wave-vector sheets.
+        <br><br>
+        The displayed sheets use a seam-free triangular mesh with restrained lighting. Any remaining
+        brightness variation is only 3D depth shading, not variation of refractive index across a sheet.
+      </p>
+    </div>
+
+    <div class="diagram-box" style="margin-top:14px">
+      <h3>Legend</h3>
+      <p>
+        <span class="legend-dot" style="background:#1D9E75"></span>Green eigenmode sheet<br>
+        <span class="legend-dot" style="background:#D85A30"></span>Orange eigenmode sheet<br>
+        <span class="legend-dot" style="background:#fff; border:1px solid #888"></span>Optic-axis point (sheet degeneracy)
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+function cross(u,v){return [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];}
+function norm(v){const m=Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2])||1;return [v[0]/m,v[1]/m,v[2]/m];}
+function eigvecLocal(a,b,c,s,n1sq,n2sq,n3sq){
+  const M11=n1sq-(1-a*a)/s, M22=n2sq-(1-b*b)/s, M33=n3sq-(1-c*c)/s;
+  const M12=a*b/s, M13=a*c/s, M23=b*c/s;
+  const r1=[M11,M12,M13], r2=[M12,M22,M23], r3=[M13,M23,M33];
+  let v=cross(r1,r2);
+  if(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]<1e-10) v=cross(r1,r3);
+  if(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]<1e-10) v=cross(r2,r3);
+  return norm(v);
+}
+function kEll(theta,nSmall,nLarge){
+  const s=Math.sin(theta),cc=Math.cos(theta);
+  return 1/Math.sqrt(s*s/(nLarge*nLarge)+cc*cc/(nSmall*nSmall));
+}
+// Handles degenerate (uniaxial / isotropic) cases explicitly.
+function findThetaC(nSmall,nMid,nLarge,tol){
+  tol = tol || 1e-9;
+  if(Math.abs(nMid-nSmall)<tol) return 0.0;
+  if(Math.abs(nMid-nLarge)<tol) return Math.PI/2;
+  let lo=1e-6, hi=Math.PI/2-1e-6;
+  let flo=kEll(lo,nSmall,nLarge)-nMid, fhi=kEll(hi,nSmall,nLarge)-nMid;
+  if((flo>0)===(fhi>0)) return Math.abs(flo)<Math.abs(fhi) ? 0.0 : Math.PI/2;
+  for(let iter=0;iter<80;iter++){
+    const mid=(lo+hi)/2, fm=kEll(mid,nSmall,nLarge)-nMid;
+    if((fm>0)===(flo>0)){ lo=mid; flo=fm; } else { hi=mid; }
+  }
+  return (lo+hi)/2;
+}
+function computeRoots(a,b,c,i1,i2,i3){
+  const B=-(a*a*(i2+i3)+b*b*(i1+i3)+c*c*(i1+i2));
+  const C=a*a*i2*i3+b*b*i1*i3+c*c*i1*i2;
+  const disc=Math.max(B*B-4*C,0);
+  const sd=Math.sqrt(disc);
+  return [(-B+sd)/2,(-B-sd)/2,disc];
+}
+
+
+function buildSheetMesh(xg,yg,zg,color,name,opacity){
+  // Convert the theta/phi grid into a Mesh3d with:
+  //   * one north-pole vertex
+  //   * one south-pole vertex
+  //   * no duplicated phi=0/2π seam
+  // This removes the radial fan/seam artifacts produced by Plotly Surface.
+  const nTheta=xg.length-1;
+  const nPhi=xg[0].length-1;
+
+  const x=[],y=[],z=[],ii=[],jj=[],kk=[];
+
+  // Single north pole.
+  x.push(xg[0][0]); y.push(yg[0][0]); z.push(zg[0][0]);
+  const north=0;
+
+  // Interior theta rings, excluding both poles and the duplicated phi endpoint.
+  for(let a=1;a<nTheta;a++){
+    for(let b=0;b<nPhi;b++){
+      x.push(xg[a][b]);
+      y.push(yg[a][b]);
+      z.push(zg[a][b]);
+    }
+  }
+
+  // Single south pole.
+  const south=x.length;
+  x.push(xg[nTheta][0]); y.push(yg[nTheta][0]); z.push(zg[nTheta][0]);
+
+  function idx(ring,lon){
+    return 1 + ring*nPhi + ((lon%nPhi)+nPhi)%nPhi;
+  }
+
+  const nRings=nTheta-1;
+
+  // North cap.
+  if(nRings>0){
+    for(let b=0;b<nPhi;b++){
+      ii.push(north);
+      jj.push(idx(0,b));
+      kk.push(idx(0,b+1));
+    }
+  }
+
+  // Middle bands.
+  for(let r=0;r<nRings-1;r++){
+    for(let b=0;b<nPhi;b++){
+      const a=idx(r,b), b1=idx(r,b+1), c=idx(r+1,b), d=idx(r+1,b+1);
+      ii.push(a);  jj.push(c);  kk.push(b1);
+      ii.push(b1); jj.push(c);  kk.push(d);
+    }
+  }
+
+  // South cap.
+  if(nRings>0){
+    const last=nRings-1;
+    for(let b=0;b<nPhi;b++){
+      ii.push(idx(last,b));
+      jj.push(south);
+      kk.push(idx(last,b+1));
+    }
+  }
+
+  return {
+    type:'mesh3d',
+    x:x,y:y,z:z,
+    i:ii,j:jj,k:kk,
+    color:color,
+    name:name,
+    opacity:opacity,
+    flatshading:false,
+    hoverinfo:'skip',
+    showscale:false,
+    lighting:{
+      // Mostly ambient illumination: preserve 3D depth but avoid
+      // false banding that looks like refractive-index structure.
+      ambient:0.96,
+      diffuse:0.08,
+      specular:0.0,
+      roughness:1.0,
+      fresnel:0.0
+    },
+    lightposition:{x:100,y:150,z:200}
+  };
+}
+
+function buildIsotropicSphere(radius,color,name){
+  const nLat=28, nLon=56;
+  const x=[],y=[],z=[],ii=[],jj=[],kk=[];
+
+  // One north pole.
+  x.push(0); y.push(0); z.push(radius);
+  const north=0;
+
+  // Latitude rings, excluding the poles so we do not duplicate pole vertices.
+  for(let a=1;a<nLat;a++){
+    const theta=Math.PI*a/nLat;
+    const st=Math.sin(theta), ct=Math.cos(theta);
+    for(let b=0;b<nLon;b++){
+      const phi=2*Math.PI*b/nLon;
+      x.push(radius*st*Math.cos(phi));
+      y.push(radius*st*Math.sin(phi));
+      z.push(radius*ct);
+    }
+  }
+
+  // One south pole.
+  const south=x.length;
+  x.push(0); y.push(0); z.push(-radius);
+
+  function idx(ring,lon){
+    return 1 + ring*nLon + ((lon%nLon)+nLon)%nLon;
+  }
+
+  // North cap.
+  for(let b=0;b<nLon;b++){
+    ii.push(north);
+    jj.push(idx(0,b));
+    kk.push(idx(0,b+1));
+  }
+
+  // Middle bands.
+  const nRings=nLat-1;
+  for(let r=0;r<nRings-1;r++){
+    for(let b=0;b<nLon;b++){
+      const a=idx(r,b), b1=idx(r,b+1), c=idx(r+1,b), d=idx(r+1,b+1);
+      ii.push(a); jj.push(c); kk.push(b1);
+      ii.push(b1); jj.push(c); kk.push(d);
+    }
+  }
+
+  // South cap.
+  const lastRing=nRings-1;
+  for(let b=0;b<nLon;b++){
+    ii.push(idx(lastRing,b));
+    jj.push(south);
+    kk.push(idx(lastRing,b+1));
+  }
+
+  return {
+    type:'mesh3d',
+    x:x,y:y,z:z,
+    i:ii,j:jj,k:kk,
+    color:color,
+    name:name,
+    opacity:0.58,
+    flatshading:false,
+    hoverinfo:'skip',
+    showscale:false,
+    lighting:{
+      ambient:0.96,
+      diffuse:0.08,
+      specular:0.0,
+      roughness:1.0,
+      fresnel:0.0
+    },
+    lightposition:{x:0,y:0,z:100}
+  };
+}
+
+function selectedSheetView(){
+  const el=document.querySelector('input[name="sheetView"]:checked');
+  return el ? el.value : 'both';
+}
+
+function update(){
+  const n1=parseFloat(document.getElementById('n1').value);
+  const n2=parseFloat(document.getElementById('n2').value);
+  const n3=parseFloat(document.getElementById('n3').value);
+  document.getElementById('n1v').textContent=n1.toFixed(2);
+  document.getElementById('n2v').textContent=n2.toFixed(2);
+  document.getElementById('n3v').textContent=n3.toFixed(2);
+
+  const nVal=[n1,n2,n3];
+  const idx=[0,1,2].sort((p,q)=>nVal[p]-nVal[q]);
+  const nSmall=nVal[idx[0]], nMid=nVal[idx[1]], nLarge=nVal[idx[2]];
+  const n1sq=nSmall*nSmall, n2sq=nMid*nMid, n3sq=nLarge*nLarge;
+  const i1=1/n1sq,i2=1/n2sq,i3=1/n3sq;
+  const nu=60, nv=60, jmid=nv/2;
+
+  const kAgrid=[],kBgrid=[],vecAgrid=[];
+  for(let i=0;i<=nu;i++){ kAgrid.push(new Array(nv+1)); kBgrid.push(new Array(nv+1)); vecAgrid.push(new Array(nv+1)); }
+  for(let i=0;i<=nu;i++){
+    const theta=Math.PI*i/nu;
+    const kc=nMid, ke=kEll(theta,nSmall,nLarge);
+    const v0=eigvecLocal(Math.sin(theta),0,Math.cos(theta),1/(kc*kc),n1sq,n2sq,n3sq);
+    kAgrid[i][0]=kc; kBgrid[i][0]=ke; vecAgrid[i][0]=v0;
+    kAgrid[i][jmid]=kc; kBgrid[i][jmid]=ke; vecAgrid[i][jmid]=v0;
+    kAgrid[i][nv]=kc; kBgrid[i][nv]=ke;
+  }
+  for(let side=0;side<2;side++){
+    const jStart = side===0?0:jmid;
+    const jEnd = side===0?jmid:nv;
+    for(let j=jStart+1;j<jEnd;j++){
+      const phi=2*Math.PI*j/nv;
+      for(let i=0;i<=nu;i++){
+        const theta=Math.PI*i/nu;
+        const a=Math.sin(theta)*Math.cos(phi), b=Math.sin(theta)*Math.sin(phi), c=Math.cos(theta);
+        const [sA,sB,disc]=computeRoots(a,b,c,i1,i2,i3);
+        const vec1=eigvecLocal(a,b,c,Math.max(sA,1e-6),n1sq,n2sq,n3sq);
+        const vec2=eigvecLocal(a,b,c,Math.max(sB,1e-6),n1sq,n2sq,n3sq);
+        const ref=vecAgrid[i][j-1];
+        const d1=Math.abs(vec1[0]*ref[0]+vec1[1]*ref[1]+vec1[2]*ref[2]);
+        const d2=Math.abs(vec2[0]*ref[0]+vec2[1]*ref[1]+vec2[2]*ref[2]);
+        let kA,kB,vA;
+        if(d1>=d2){ kA=1/Math.sqrt(Math.max(sA,1e-6)); kB=1/Math.sqrt(Math.max(sB,1e-6)); vA=vec1; }
+        else { kA=1/Math.sqrt(Math.max(sB,1e-6)); kB=1/Math.sqrt(Math.max(sA,1e-6)); vA=vec2; }
+        kAgrid[i][j]=kA; kBgrid[i][j]=kB; vecAgrid[i][j]=vA;
+      }
+    }
+  }
+
+  const xa=[],ya=[],za=[],xb=[],yb=[],zb=[];
+  for(let i=0;i<=nu;i++){
+    const theta=Math.PI*i/nu;
+    const rax=[],ray=[],raz=[],rbx=[],rby=[],rbz=[];
+    for(let j=0;j<=nv;j++){
+      const phi=2*Math.PI*j/nv;
+      const aL=Math.sin(theta)*Math.cos(phi), bL=Math.sin(theta)*Math.sin(phi), cL=Math.cos(theta);
+      const phys=[0,0,0];
+      phys[idx[0]]=aL; phys[idx[1]]=bL; phys[idx[2]]=cL;
+      const kA=kAgrid[i][j], kB=kBgrid[i][j];
+      rax.push(kA*phys[0]); ray.push(kA*phys[1]); raz.push(kA*phys[2]);
+      rbx.push(kB*phys[0]); rby.push(kB*phys[1]); rbz.push(kB*phys[2]);
+    }
+    xa.push(rax);ya.push(ray);za.push(raz);
+    xb.push(rbx);yb.push(rby);zb.push(rbz);
+  }
+
+  // Optic axes: none if fully isotropic (branches coincide everywhere).
+  let optx=[],opty=[],optz=[];
+  let statusText, statusColor;
+  const tol=1e-9;
+  if(Math.abs(nLarge-nSmall)<tol){
+    statusText = "n₁ = n₂ = n₃ &rarr; <b>isotropic</b>: the two polarization sheets coincide everywhere, giving one featureless spherical surface; there is no isolated optic axis.";
+    statusColor = "#252932";
+  } else {
+    const thetaC=findThetaC(nSmall,nMid,nLarge);
+    [thetaC, Math.PI-thetaC].forEach(function(th){
+      [0,Math.PI].forEach(function(ph){
+        const aL=Math.sin(th)*Math.cos(ph), bL=Math.sin(th)*Math.sin(ph), cL=Math.cos(th);
+        const phys=[0,0,0]; phys[idx[0]]=aL; phys[idx[1]]=bL; phys[idx[2]]=cL;
+        optx.push(nMid*phys[0]); opty.push(nMid*phys[1]); optz.push(nMid*phys[2]);
+      });
+    });
+    const tied = Math.abs(nMid-nSmall)<1e-4 || Math.abs(nMid-nLarge)<1e-4;
+    if(tied){
+      statusText = "Two principal indices coincide &rarr; <b>uniaxial</b>: spherical and spheroidal sheets touch at 2 antipodal points, representing one optic-axis line.";
+      statusColor = "#1b2638";
+    } else {
+      statusText = "n₁, n₂, n₃ all distinct &rarr; <b>biaxial</b>: 4 degeneracy points, representing 2 optic-axis lines with ± symmetry.";
+      statusColor = "#33271d";
+    }
+  }
+  document.getElementById('statusBox').innerHTML = statusText;
+  document.getElementById('statusBox').style.background = statusColor;
+
+  const sheetA=buildSheetMesh(xa,ya,za,'#1D9E75','Green eigenmode sheet',0.68);
+  const sheetB=buildSheetMesh(xb,yb,zb,'#D85A30','Orange eigenmode sheet',0.68);
+  const pts={type:'scatter3d',mode:'markers',x:optx,y:opty,z:optz,marker:{size:5,color:'#ffffff',line:{color:'#777',width:1}},name:'Optic-axis points',hoverinfo:'skip'};
+
+  const isotropic = Math.abs(nLarge-nSmall)<tol;
+  const view = selectedSheetView();
+  let traces = [];
+
+  if(isotropic){
+    // Both polarization eigenmodes are exactly degenerate everywhere.
+    // Use a dedicated sphere mesh with a single vertex at each pole and
+    // uniform lighting. This avoids UV-surface pole fans, seams and shading
+    // patterns that could be mistaken for physical structure.
+    const isoColor = (view === 'orange') ? '#D85A30' : '#1D9E75';
+    const isoName  = (view === 'orange') ? 'Orange eigenmode sheet' : 'Green eigenmode sheet';
+    traces = [buildIsotropicSphere(nMid,isoColor,isoName)];
+  } else {
+    if(view === 'green') traces = [sheetA, pts];
+    else if(view === 'orange') traces = [sheetB, pts];
+    else traces = [sheetA, sheetB, pts];
+  }
+
+  Plotly.react('plot',traces,{
+    autosize:true,margin:{l:0,r:0,t:10,b:0},
+    paper_bgcolor:'#191c22',
+    plot_bgcolor:'#191c22',
+    font:{color:'#f2f3f5'},
+    scene:{
+      bgcolor:'#191c22',
+      camera:{eye:{x:1.55,y:1.55,z:1.15}},
+      xaxis:{title:'kₓ / (ω/c)',color:'#d5d8de',gridcolor:'#3b414c',zerolinecolor:'#606875',range:[-2.3,2.3]},
+      yaxis:{title:'kᵧ / (ω/c)',color:'#d5d8de',gridcolor:'#3b414c',zerolinecolor:'#606875',range:[-2.3,2.3]},
+      zaxis:{title:'k_z / (ω/c)',color:'#d5d8de',gridcolor:'#3b414c',zerolinecolor:'#606875',range:[-2.3,2.3]},
+      aspectmode:'cube'
+    }
+  },{displayModeBar:false,responsive:true});
+}
+
+['n1','n2','n3'].forEach(function(id){
+  document.getElementById(id).addEventListener('input', update);
+});
+
+document.querySelectorAll('input[name="sheetView"]').forEach(function(el){
+  el.addEventListener('change', update);
+});
+update();
+</script>
+
+</body>
+</html>
