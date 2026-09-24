@@ -80,11 +80,21 @@
 <div class="wrap">
   <h1>KTP: biaxial index ellipsoid</h1>
   <div class="sub">
-    λ = 1556 nm and T = 20 °C.
+    Principal indices come from the Kato &amp; Takaoka (2002) Sellmeier equations (valid for λ = 0.43–3.54 µm)
+    plus their thermo-optic formulas, applied as a linear correction in (T − 20 °C)
+    (fitted for λ ≈ 0.43–1.58 µm for x, y and 0.53–3.53 µm for z, and validated at about 20–80 °C).
     θ is the polar angle from +z; φ is the azimuth measured from +x.
   </div>
 
   <div class="controls">
+    <div class="control">
+      <label for="lambda"><span>Wavelength λ</span><span id="lambdaText">1556 nm</span></label>
+      <input id="lambda" type="range" min="430" max="3540" step="1" value="1556">
+    </div>
+    <div class="control">
+      <label for="temp"><span>Temperature T</span><span id="tempText">20.0 °C</span></label>
+      <input id="temp" type="range" min="20" max="200" step="0.5" value="20">
+    </div>
     <div class="control">
       <label for="theta"><span>Polar angle θ</span><span id="thetaText">18°</span></label>
       <input id="theta" type="range" min="0" max="180" step="1" value="18">
@@ -109,9 +119,10 @@
     <div class="info-card">
       <div class="section">
         <div class="label">Principal indices</div>
-        <div class="value">nₓ = 1.72805538</div>
-        <div class="value">nᵧ = 1.73479791</div>
-        <div class="value">n_z = 1.81563498</div>
+        <div class="value">nₓ = <span id="nxText"></span></div>
+        <div class="value">nᵧ = <span id="nyText"></span></div>
+        <div class="value">n_z = <span id="nzText"></span></div>
+        <div class="note" id="fitWarning" hidden></div>
       </div>
 
       <div class="section">
@@ -146,10 +157,35 @@
 
 <script>
 (() => {
-  const nx=1.728055381158912, ny=1.734797906246379, nz=1.815634979233944;
+  // Kato & Takaoka (2002), λ in µm.
+  // Eq. (1): n²(λ, 20 °C) = A + B/(λ² − C) + D/(λ² − E), valid 0.43–3.54 µm.
+  // Eq. (2): dn/dT in units of 1e-5 per °C; each formula carries its own fitted range.
+  //   x, y: 0.43–1.58 µm. z: one formula for 0.53–1.57 µm and another for
+  //   1.32–3.53 µm; they agree to <1e-8 /°C across the overlap, so we switch at 1.57 µm.
+  const KATO = {
+    x: {A:3.29100, B:0.04140, C:0.03978, D:9.35522,   E:31.45571, range:[0.43,1.58],
+        dndT: l => 0.1717/l**3 - 0.5353/l**2 + 0.8416/l + 0.1627},
+    y: {A:3.45018, B:0.04341, C:0.04597, D:16.98825,  E:39.43799, range:[0.43,1.58],
+        dndT: l => 0.1997/l**3 - 0.4063/l**2 + 0.5154/l + 0.5425},
+    z: {A:4.59423, B:0.06206, C:0.04763, D:110.80672, E:86.12171, range:[0.53,3.53],
+        dndT: l => l <= 1.57
+          ? 0.9221/l**3 - 2.9220/l**2 + 3.6677/l - 0.1897
+          : -0.5523/l + 3.3920 - 1.7101*l + 0.3424*l*l}
+  };
+  // The paper validates the thermo-optic fit with phase-matching data at about 20–80 °C
+  // and notes it could not reproduce a data point at 484 °C.
+  const T_FIT_MAX = 80;
+  function kato(c, lum, T) {
+    const l2=lum*lum;
+    const n20=Math.sqrt(c.A + c.B/(l2-c.C) + c.D/(l2-c.E));
+    return n20 + c.dndT(lum)*1e-5*(T-20);
+  }
+  let nx, ny, nz;
   const root=document.documentElement;
   const cvs=document.getElementById('canvas'), ctx=cvs.getContext('2d');
   const thSlider=document.getElementById('theta'), phSlider=document.getElementById('phi');
+  const lamSlider=document.getElementById('lambda'), tSlider=document.getElementById('temp');
+  const lamText=document.getElementById('lambdaText'), tText=document.getElementById('tempText');
   const thText=document.getElementById('thetaText'), phText=document.getElementById('phiText');
   const fastText=document.getElementById('fastValue'), slowText=document.getElementById('slowValue');
   const kdirText=document.getElementById('kdir');
@@ -276,6 +312,21 @@
 
   function draw() {
     const td=Number(thSlider.value),pd=Number(phSlider.value);
+    const lnm=Number(lamSlider.value),T=Number(tSlider.value);
+    nx=kato(KATO.x,lnm/1000,T); ny=kato(KATO.y,lnm/1000,T); nz=kato(KATO.z,lnm/1000,T);
+    lamText.textContent=lnm.toFixed(0)+' nm'; tText.textContent=T.toFixed(1)+' °C';
+    document.getElementById('nxText').textContent=nx.toFixed(8);
+    document.getElementById('nyText').textContent=ny.toFixed(8);
+    document.getElementById('nzText').textContent=nz.toFixed(8);
+    const warn=[];
+    if(T!==20) {
+      const out=['x','y','z'].filter(a => lnm/1000<KATO[a].range[0] || lnm/1000>KATO[a].range[1]);
+      if(out.length) warn.push(`dn/dT for ${out.map(a=>'n_'+a).join(', ')} is extrapolated beyond its fitted wavelength range.`);
+      if(T>T_FIT_MAX) warn.push(`Above ~${T_FIT_MAX} °C the thermo-optic fit is not experimentally validated.`);
+    }
+    const warnEl=document.getElementById('fitWarning');
+    warnEl.textContent=warn.join(' ');
+    warnEl.hidden=!warn.length;
     const th=td*Math.PI/180,ph=pd*Math.PI/180;
     thText.textContent=td.toFixed(0)+'°'; phText.textContent=pd.toFixed(0)+'°';
 
@@ -347,6 +398,8 @@
 
   thSlider.addEventListener('input',draw);
   phSlider.addEventListener('input',draw);
+  lamSlider.addEventListener('input',draw);
+  tSlider.addEventListener('input',draw);
   draw();
 })();
 </script>
