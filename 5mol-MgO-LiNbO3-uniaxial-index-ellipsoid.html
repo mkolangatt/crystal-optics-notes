@@ -72,6 +72,13 @@
     font-variant-numeric: tabular-nums;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
+  .fit-warning {
+    margin-top: 8px;
+    padding: 9px 10px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--extra) 14%, transparent);
+    font-size: 13px;
+  }
   .phi-note {
     margin-top: 8px;
     padding: 9px 10px;
@@ -103,7 +110,7 @@
   <h1>5 mol% MgO:LiNbO₃ — uniaxial index ellipsoid</h1>
   <div class="sub">
     Principal indices come from the Gayer et al. (2008) Sellmeier equation for 5 mol% MgO:CLN
-    (valid for λ = 0.5–4 µm and T = 20–200 °C).
+    (nₑ valid for λ = 0.5–4 µm and T = 20–200 °C; nₒ reliable only up to 1620 nm and roughly 20–100 °C).
     θ is the polar angle from +z; φ is the azimuth measured from +x.
   </div>
 
@@ -143,6 +150,7 @@
         <div>n<sub>x</sub> = n<sub>y</sub> = n<sub>o</sub></div>
         <div class="value">nₒ = <span id="noText"></span></div>
         <div class="value">nₑ = <span id="neText"></span></div>
+        <div class="fit-warning" id="fitWarning" hidden></div>
       </div>
 
       <div class="section">
@@ -194,6 +202,9 @@
       + (c.a4 + c.b4*f)/(l2 - c.a5*c.a5)
       - c.a6*l2);
   }
+  // Gayer et al. only validated the ordinary-index equation up to 1620 nm and ~20–100 °C
+  // (the extraordinary one covers the full 0.5–4 µm, 20–200 °C slider range).
+  const NO_MAX_NM = 1620, NO_MAX_T = 100;
   let no, ne;
 
   const root = document.documentElement;
@@ -312,6 +323,9 @@
     tText.textContent=T.toFixed(1)+' °C';
     document.getElementById('noText').textContent=no.toFixed(8);
     document.getElementById('neText').textContent=ne.toFixed(8);
+    const warnEl=document.getElementById('fitWarning');
+    warnEl.hidden=!(lnm>NO_MAX_NM || T>NO_MAX_T);
+    warnEl.textContent=`nₒ is outside its validated range (λ ≤ ${NO_MAX_NM} nm, T ≈ 20–${NO_MAX_T} °C); treat it as an extrapolation.`;
     document.getElementById('noValue').textContent=no.toFixed(8);
     const th=td*Math.PI/180, ph=pd*Math.PI/180;
 
