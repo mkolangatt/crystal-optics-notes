@@ -80,11 +80,20 @@
 <div class="wrap">
   <h1>KTP: biaxial index ellipsoid</h1>
   <div class="sub">
-    λ = 1556 nm and T = 20 °C.
+    Principal indices come from the Kato &amp; Takaoka (2002) Sellmeier equations (valid for λ = 0.43–3.54 µm)
+    plus their thermo-optic formulas, applied as a linear correction in (T − 20 °C).
     θ is the polar angle from +z; φ is the azimuth measured from +x.
   </div>
 
   <div class="controls">
+    <div class="control">
+      <label for="lambda"><span>Wavelength λ</span><span id="lambdaText">1556 nm</span></label>
+      <input id="lambda" type="range" min="430" max="3540" step="1" value="1556">
+    </div>
+    <div class="control">
+      <label for="temp"><span>Temperature T</span><span id="tempText">20.0 °C</span></label>
+      <input id="temp" type="range" min="20" max="200" step="0.5" value="20">
+    </div>
     <div class="control">
       <label for="theta"><span>Polar angle θ</span><span id="thetaText">18°</span></label>
       <input id="theta" type="range" min="0" max="180" step="1" value="18">
@@ -109,9 +118,9 @@
     <div class="info-card">
       <div class="section">
         <div class="label">Principal indices</div>
-        <div class="value">nₓ = 1.72805538</div>
-        <div class="value">nᵧ = 1.73479791</div>
-        <div class="value">n_z = 1.81563498</div>
+        <div class="value">nₓ = <span id="nxText"></span></div>
+        <div class="value">nᵧ = <span id="nyText"></span></div>
+        <div class="value">n_z = <span id="nzText"></span></div>
       </div>
 
       <div class="section">
@@ -146,10 +155,26 @@
 
 <script>
 (() => {
-  const nx=1.728055381158912, ny=1.734797906246379, nz=1.815634979233944;
+  // Kato & Takaoka (2002), λ in µm:
+  //   n²(λ, 20 °C) = A + B/(λ² − C) + D/(λ² − E)
+  //   dn/dT = (t3/λ³ + t2/λ² + t1/λ + t0) × 1e-5 per °C
+  const KATO = {
+    x: {A:3.29100, B:0.04140, C:0.03978, D:9.35522,   E:31.45571, t:[0.1717, -0.5353, 0.8416,  0.1627]},
+    y: {A:3.45018, B:0.04341, C:0.04597, D:16.98825,  E:39.43799, t:[0.1997, -0.4063, 0.5154,  0.5425]},
+    z: {A:4.59423, B:0.06206, C:0.04763, D:110.80672, E:86.12171, t:[0.9221, -2.9220, 3.6677, -0.1897]}
+  };
+  function kato(c, lum, T) {
+    const l2=lum*lum;
+    const n20=Math.sqrt(c.A + c.B/(l2-c.C) + c.D/(l2-c.E));
+    const dndT=(c.t[0]/(l2*lum) + c.t[1]/l2 + c.t[2]/lum + c.t[3])*1e-5;
+    return n20 + dndT*(T-20);
+  }
+  let nx, ny, nz;
   const root=document.documentElement;
   const cvs=document.getElementById('canvas'), ctx=cvs.getContext('2d');
   const thSlider=document.getElementById('theta'), phSlider=document.getElementById('phi');
+  const lamSlider=document.getElementById('lambda'), tSlider=document.getElementById('temp');
+  const lamText=document.getElementById('lambdaText'), tText=document.getElementById('tempText');
   const thText=document.getElementById('thetaText'), phText=document.getElementById('phiText');
   const fastText=document.getElementById('fastValue'), slowText=document.getElementById('slowValue');
   const kdirText=document.getElementById('kdir');
@@ -276,6 +301,12 @@
 
   function draw() {
     const td=Number(thSlider.value),pd=Number(phSlider.value);
+    const lnm=Number(lamSlider.value),T=Number(tSlider.value);
+    nx=kato(KATO.x,lnm/1000,T); ny=kato(KATO.y,lnm/1000,T); nz=kato(KATO.z,lnm/1000,T);
+    lamText.textContent=lnm.toFixed(0)+' nm'; tText.textContent=T.toFixed(1)+' °C';
+    document.getElementById('nxText').textContent=nx.toFixed(8);
+    document.getElementById('nyText').textContent=ny.toFixed(8);
+    document.getElementById('nzText').textContent=nz.toFixed(8);
     const th=td*Math.PI/180,ph=pd*Math.PI/180;
     thText.textContent=td.toFixed(0)+'°'; phText.textContent=pd.toFixed(0)+'°';
 
@@ -347,6 +378,8 @@
 
   thSlider.addEventListener('input',draw);
   phSlider.addEventListener('input',draw);
+  lamSlider.addEventListener('input',draw);
+  tSlider.addEventListener('input',draw);
   draw();
 })();
 </script>

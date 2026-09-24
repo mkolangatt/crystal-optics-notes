@@ -102,11 +102,20 @@
 <div class="wrap">
   <h1>5 mol% MgO:LiNbO₃ — uniaxial index ellipsoid</h1>
   <div class="sub">
-    λ = 1556 nm and T = 20 °C. 
+    Principal indices come from the Gayer et al. (2008) Sellmeier equation for 5 mol% MgO:CLN
+    (valid for λ = 0.5–4 µm and T = 20–200 °C).
     θ is the polar angle from +z; φ is the azimuth measured from +x.
   </div>
 
   <div class="controls">
+    <div class="control">
+      <label for="lambda"><span>Wavelength λ</span><span id="lambdaText">1556 nm</span></label>
+      <input id="lambda" type="range" min="500" max="4000" step="1" value="1556">
+    </div>
+    <div class="control">
+      <label for="temp"><span>Temperature T</span><span id="tempText">20.0 °C</span></label>
+      <input id="temp" type="range" min="20" max="200" step="0.5" value="20">
+    </div>
     <div class="control">
       <label for="theta"><span>Polar angle θ</span><span id="thetaText">30°</span></label>
       <input id="theta" type="range" min="0" max="180" step="1" value="30">
@@ -132,8 +141,8 @@
       <div class="section">
         <div class="label">Principal indices</div>
         <div>n<sub>x</sub> = n<sub>y</sub> = n<sub>o</sub></div>
-        <div class="value">nₒ = 2.20811465</div>
-        <div class="value">nₑ = 2.12921679</div>
+        <div class="value">nₒ = <span id="noText"></span></div>
+        <div class="value">nₑ = <span id="neText"></span></div>
       </div>
 
       <div class="section">
@@ -143,7 +152,7 @@
 
       <div class="section">
         <div class="label">Transverse-section indices</div>
-        <div class="value">ordinary: <span id="noValue">2.20811465</span></div>
+        <div class="value">ordinary: <span id="noValue"></span></div>
         <div class="value">extraordinary: <span id="neffValue"></span></div>
         <div class="phi-note">
           Change φ while holding θ fixed: the plane and k rotate around z, but both refractive-index values remain unchanged.
@@ -168,14 +177,33 @@
 
 <script>
 (() => {
-  const no = 2.208114650341435;
-  const ne = 2.129216790384933;
+  // Gayer et al. (2008), 5 mol% MgO-doped congruent LiNbO3, λ in µm, T in °C:
+  // n² = a1 + b1·f + (a2 + b2·f)/(λ² − (a3 + b3·f)²) + (a4 + b4·f)/(λ² − a5²) − a6·λ²,
+  // with f = (T − 24.5)(T + 570.82).
+  const GAYER = {
+    e: {a1:5.756, a2:0.0983, a3:0.2020, a4:189.32, a5:12.52, a6:1.32e-2,
+        b1:2.860e-6, b2:4.700e-8, b3:6.113e-8, b4:1.516e-4},
+    o: {a1:5.653, a2:0.1185, a3:0.2091, a4:89.61, a5:10.85, a6:1.97e-2,
+        b1:7.941e-7, b2:3.134e-8, b3:-4.641e-9, b4:-2.188e-6}
+  };
+  function gayer(c, lum, T) {
+    const f=(T-24.5)*(T+570.82), l2=lum*lum;
+    return Math.sqrt(c.a1 + c.b1*f
+      + (c.a2 + c.b2*f)/(l2 - (c.a3 + c.b3*f)**2)
+      + (c.a4 + c.b4*f)/(l2 - c.a5*c.a5)
+      - c.a6*l2);
+  }
+  let no, ne;
 
   const root = document.documentElement;
   const cvs = document.getElementById('canvas');
   const ctx = cvs.getContext('2d');
   const thSlider = document.getElementById('theta');
   const phSlider = document.getElementById('phi');
+  const lamSlider = document.getElementById('lambda');
+  const tSlider = document.getElementById('temp');
+  const lamText = document.getElementById('lambdaText');
+  const tText = document.getElementById('tempText');
   const thText = document.getElementById('thetaText');
   const phText = document.getElementById('phiText');
   const neffText = document.getElementById('neffValue');
@@ -276,6 +304,14 @@
 
   function draw() {
     const td=Number(thSlider.value), pd=Number(phSlider.value);
+    const lnm=Number(lamSlider.value), T=Number(tSlider.value);
+    no=gayer(GAYER.o, lnm/1000, T);
+    ne=gayer(GAYER.e, lnm/1000, T);
+    lamText.textContent=lnm.toFixed(0)+' nm';
+    tText.textContent=T.toFixed(1)+' °C';
+    document.getElementById('noText').textContent=no.toFixed(8);
+    document.getElementById('neText').textContent=ne.toFixed(8);
+    document.getElementById('noValue').textContent=no.toFixed(8);
     const th=td*Math.PI/180, ph=pd*Math.PI/180;
 
     thText.textContent=td.toFixed(0)+'°';
@@ -363,6 +399,8 @@
 
   thSlider.addEventListener('input',draw);
   phSlider.addEventListener('input',draw);
+  lamSlider.addEventListener('input',draw);
+  tSlider.addEventListener('input',draw);
   draw();
 })();
 </script>
