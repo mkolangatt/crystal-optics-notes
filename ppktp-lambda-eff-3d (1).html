@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Effective poling period along the beam in PPKTP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    --paper: #eef1f4;
+    --panel: #f8fafb;
+    --ink: #1b2a3a;
+    --muted: #5b6b7a;
+    --rule: #c9d2da;
+    --domain-a: #d19a2e;
+    --domain-b: #3f7f80;
+    --beam: #c8102e;
+    --grating: #3b4cca;
+    --focus: #3b4cca;
+    --slab-opacity: 0.24;
+    --serif: "STIX Two Text", "Cambria Math", Cambria, Georgia, serif;
+    --sans: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #10161d;
+      --panel: #161e27;
+      --ink: #dce3ea;
+      --muted: #93a3b2;
+      --rule: #2c3845;
+      --domain-a: #e3b45a;
+      --domain-b: #5fa8a9;
+      --beam: #ff4d5e;
+      --grating: #8c98ff;
+      --focus: #8c98ff;
+      --slab-opacity: 0.15;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #10161d;
+    --panel: #161e27;
+    --ink: #dce3ea;
+    --muted: #93a3b2;
+    --rule: #2c3845;
+    --domain-a: #e3b45a;
+    --domain-b: #5fa8a9;
+    --beam: #ff4d5e;
+    --grating: #8c98ff;
+    --focus: #8c98ff;
+    --slab-opacity: 0.15;
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    height: 100%;
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .app {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 410px);
+    height: 100%;
+  }
+  .scene { position: relative; min-height: 0; height: 100%; }
+  .stage { position: relative; height: 100%; }
+  #view {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: grab;
+  }
+  #view:active { cursor: grabbing; }
+  #view:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; }
+  .hint {
+    position: absolute;
+    top: 14px;
+    left: 18px;
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .legend {
+    position: absolute;
+    left: 18px;
+    bottom: 16px;
+    max-width: calc(100% - 36px);
+    margin: 0;
+    padding: 10px 12px;
+    background: color-mix(in srgb, var(--panel) 88%, transparent);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    font-size: 12.5px;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 4px 18px;
+  }
+  .legend li { display: flex; align-items: center; gap: 8px; }
+  .legend .note { grid-column: 1 / -1; color: var(--muted); }
+  .sw { width: 14px; height: 10px; border-radius: 2px; flex: none; }
+  .sw.line { height: 3px; }
+  .sw.dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  .panel {
+    background: var(--panel);
+    border-left: 1px solid var(--rule);
+    overflow-y: auto;
+    padding: 26px 26px 34px;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.62rem;
+    line-height: 1.2;
+    margin: 0 0 10px;
+    letter-spacing: -0.005em;
+  }
+  .lede { margin: 0 0 22px; color: var(--muted); max-width: 60ch; }
+  h2 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.08rem;
+    margin: 26px 0 10px;
+  }
+  .equation {
+    font-family: var(--serif);
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 14px 0 12px;
+  }
+  .equation p { margin: 0; }
+  .eq-sym { font-size: 1.15rem; }
+  .eq-num { font-size: 1.05rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .eq-result {
+    font-size: 2.5rem;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px !important;
+  }
+  .eq-ratio { font-size: 0.98rem; color: var(--muted); }
+  .note-box {
+    margin: 12px 0 0;
+    padding: 9px 11px;
+    border-left: 3px solid var(--beam);
+    background: color-mix(in srgb, var(--beam) 7%, transparent);
+    font-size: 13.5px;
+  }
+  .note-box:empty { display: none; }
+
+  .control { margin-bottom: 14px; }
+  .control-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  .control label, .field label { font-weight: 500; }
+  .sym { font-family: var(--serif); font-style: italic; font-size: 1.08em; }
+  .hint-small { font-size: 12.5px; color: var(--muted); }
+  input[type="range"] { width: 100%; accent-color: var(--grating); }
+  input[type="number"] {
+    width: 6.4em;
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 3px 6px;
+  }
+  input:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  button {
+    font: inherit;
+    font-size: 13.5px;
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--muted); }
+  button[aria-pressed="true"] { border-color: var(--grating); color: var(--grating); }
+
+  .mode { border: 0; padding: 0; margin: 0 0 10px; }
+  .mode legend { font-weight: 500; padding: 0; margin-bottom: 6px; }
+  .mode label { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; cursor: pointer; }
+  .mode label input { flex: none; }
+  .field { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .strip-wrap { overflow-x: auto; }
+  #strip { display: block; width: 100%; height: 132px; }
+
+  dl.readout {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 14px;
+    margin: 12px 0 0;
+    font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  dl.readout dt { color: var(--muted); }
+  dl.readout dd { margin: 0; }
+
+  details { margin-top: 24px; border-top: 1px solid var(--rule); padding-top: 12px; }
+  summary { font-family: var(--serif); font-weight: 600; font-size: 1.08rem; cursor: pointer; }
+  details .grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px 12px;
+    align-items: center;
+    margin-top: 12px;
+    font-size: 14px;
+  }
+  details p { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+
+  @media (max-width: 820px) {
+    html, body { height: auto; }
+    .app { display: block; height: auto; }
+    .scene { height: auto; }
+    .stage { height: 58vh; min-height: 340px; }
+    .legend { position: static; margin: 10px 14px 16px; max-width: none; }
+    .panel { border-left: 0; border-top: 1px solid var(--rule); overflow: visible; }
+    .legend { grid-template-columns: 1fr 1fr; font-size: 12px; }
+    .eq-result { font-size: 2.1rem; }
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <section class="scene" aria-label="3D view of the poled crystal and the beam">
+    <div class="stage">
+      <canvas id="view" tabindex="0" aria-label="Rotatable 3D view. Drag, or use the arrow keys, to rotate; scroll or use plus and minus to zoom."></canvas>
+      <p class="hint">Drag to rotate, scroll to zoom</p>
+    </div>
+    <ul class="legend" aria-label="Legend">
+      <li><span class="sw" style="background:var(--domain-a)"></span><span>Domain poled +z</span></li>
+      <li><span class="sw" style="background:var(--domain-b)"></span><span>Domain poled −z</span></li>
+      <li><span class="sw line" style="background:var(--beam)"></span><span>Beam direction s</span></li>
+      <li><span class="sw line" style="background:var(--grating)"></span><span>Grating vector K ∥ x</span></li>
+      <li><span class="sw" style="background:var(--beam);opacity:.45"></span><span>One Λ<sub>eff</sub> along the beam</span></li>
+      <li><span class="sw dot" style="background:var(--ink)"></span><span>Domain-wall crossings</span></li>
+      <li class="note">Domains are drawn schematically; the period is not to scale.</li>
+    </ul>
+  </section>
+
+  <aside class="panel">
+    <h1>Effective poling period along the beam</h1>
+
+    <div class="equation" aria-live="polite">
+      <p class="eq-sym" id="eqSym"></p>
+      <p class="eq-num" id="eqNum"></p>
+      <p class="eq-result" id="eqResult"></p>
+      <p class="eq-ratio" id="eqRatio"></p>
+    </div>
+    <p class="note-box" id="note"></p>
+
+    <h2>Beam direction</h2>
+    <div class="control">
+      <div class="control-head">
+        <label for="thetaNum"><span class="sym">θ</span>, angle from z (deg)</label>
+        <input type="number" id="thetaNum" min="0" max="180" step="0.1">
+      </div>
+      <input type="range" id="theta" min="0" max="180" step="0.1" aria-label="theta in degrees">
+    </div>
+    <div class="control">
+      <div class="control-head">
+        <label for="phiNum"><span class="sym">φ</span>, angle from x in the xy-plane (deg)</label>
+        <input type="number" id="phiNum" min="0" max="360" step="0.1">
+      </div>
+      <input type="range" id="phi" min="0" max="360" step="0.1" aria-label="phi in degrees">
+    </div>
+    <div class="presets" role="group" aria-label="Preset directions">
+      <button type="button" data-t="90" data-p="0">Along x (standard chip)</button>
+      <button type="button" data-t="90" data-p="30">30° in the xy-plane</button>
+      <button type="button" data-t="90" data-p="90">Along y</button>
+      <button type="button" data-t="0" data-p="0">Along z</button>
+    </div>
+
+    <h2>Period</h2>
+    <fieldset class="mode">
+      <legend>Which period do you know?</legend>
+      <label><input type="radio" name="mode" value="eff" checked><span>Λ<sub>eff</sub> from my scalar phase-matching model</span></label>
+      <label><input type="radio" name="mode" value="real"><span>Λ<sub>real</sub> written on the crystal</span></label>
+    </fieldset>
+    <div class="field">
+      <label for="period" id="periodLabel">Λ<sub>eff</sub> (µm)</label>
+      <input type="number" id="period" min="0.1" step="0.01">
+    </div>
+    <p class="hint-small" id="periodHint" style="margin:6px 0 0">30 µm is a placeholder; enter the value from your model.</p>
+
+    <h2>What the beam sees</h2>
+    <div class="strip-wrap"><canvas id="strip" aria-label="Domain pattern along x compared with the pattern along the beam"></canvas></div>
+    <dl class="readout">
+      <dt>Beam vector s</dt><dd id="sVec"></dd>
+      <dt>|sin θ cos φ| = cos α</dt><dd id="cosA"></dd>
+      <dt>Angle to grating, α</dt><dd id="alpha"></dd>
+    </dl>
+
+    <details>
+      <summary>Tilt of the generated wave</summary>
+      <div class="grid">
+        <label for="lamOut">Generated wavelength (µm)</label>
+        <input type="number" id="lamOut" min="0.1" step="0.001">
+        <label for="nOut">Its refractive index along s</label>
+        <input type="number" id="nOut" min="1" step="0.001">
+        <label for="len">Crystal length (mm)</label>
+        <input type="number" id="len" min="0.1" step="0.1">
+        <span>Tilt from the beam, β</span><output id="tilt"></output>
+        <span>Sideways walk-off over the length</span><output id="walk"></output>
+      </div>
+    </details>
+  </aside>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const DEG = Math.PI / 180;
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+  const state = { theta: 17.4, phi: 4.6, mode: "eff", period: 30, lamOut: 0.775, nOut: 1.84, len: 5 };
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  function fmt(v, digits) {
+    if (!Number.isFinite(v)) return "∞";
+    if (Math.abs(v) >= 1000) return v.toFixed(0);
+    return v.toFixed(digits === undefined ? 2 : digits);
+  }
+
+  // -------------------------------------------------------------- physics
+  function compute() {
+    const t = state.theta * DEG, p = state.phi * DEG;
+    const s = { x: Math.sin(t) * Math.cos(p), y: Math.sin(t) * Math.sin(p), z: Math.cos(t) };
+    const c = Math.abs(s.x);
+    const alpha = Math.acos(clamp(c, 0, 1)) / DEG;
+    let lamReal, lamEff;
+    if (state.mode === "real") {
+      lamReal = state.period;
+      lamEff = c > 1e-6 ? lamReal / c : Infinity;
+    } else {
+      lamEff = state.period;
+      lamReal = lamEff * c;
+    }
+    let tilt = NaN, walk = NaN;
+    if (lamReal > 1e-9 && c > 1e-6) {
+      const arg = (state.lamOut * Math.sin(alpha * DEG)) / (state.nOut * lamReal);
+      if (arg <= 1) {
+        tilt = Math.asin(arg);
+        walk = state.len * 1000 * Math.tan(tilt);
+      }
+    }
+    return { s, c, alpha, lamReal, lamEff, tilt, walk };
+  }
+
+  // -------------------------------------------------------------- panel
+  function updatePanel(r) {
+    const sub = (a) => `Λ<sub>${a}</sub>`;
+    const parallel = r.c <= 1e-6;
+    if (state.mode === "real") {
+      $("eqSym").innerHTML = `${sub("eff")} = ${sub("real")} / |sin θ cos φ|`;
+      $("eqNum").textContent = parallel ? "the beam never crosses a domain wall"
+        : `= ${fmt(r.lamReal)} µm / ${r.c.toFixed(4)}`;
+      $("eqResult").innerHTML = parallel ? "∞" : `${fmt(r.lamEff)} µm`;
+    } else {
+      $("eqSym").innerHTML = `${sub("real")} = ${sub("eff")} · |sin θ cos φ|`;
+      $("eqNum").textContent = parallel ? "no finite real period gives this Λ_eff"
+        : `= ${fmt(r.lamEff)} µm × ${r.c.toFixed(4)}`;
+      $("eqResult").innerHTML = parallel ? "none" : `${fmt(r.lamReal)} µm`;
+    }
+    $("eqRatio").innerHTML = parallel ? `${sub("eff")} / ${sub("real")} → ∞`
+      : `${sub("eff")} / ${sub("real")} = ${(1 / r.c).toFixed(3)}`;
+
+    let note = "";
+    if (parallel) {
+      note = "The beam runs parallel to the domain walls, so the grating adds nothing. This is the pure birefringent phase-matching limit.";
+    } else if (state.theta < 30 || state.theta > 150) {
+      note = "This direction is close to z, so the beam travels through the thin poled dimension of the wafer. The interaction length is capped at roughly the poled thickness (1–2 mm standard, about 5 mm in large-aperture RKTP).";
+    } else if (r.alpha > 45) {
+      note = "At this angle to the grating, the transverse grating component is large; check the tilt estimate below.";
+    }
+    $("note").textContent = note;
+
+    const s = r.s;
+    $("sVec").textContent = `(${s.x.toFixed(3)}, ${s.y.toFixed(3)}, ${s.z.toFixed(3)})`;
+    $("cosA").textContent = r.c.toFixed(4);
+    $("alpha").textContent = `${r.alpha.toFixed(1)}°`;
+    $("tilt").textContent = Number.isFinite(r.tilt) ? `${(r.tilt / DEG).toFixed(2)}°` : "no solution";
+    $("walk").textContent = Number.isFinite(r.walk) ? `${fmt(r.walk, 0)} µm` : "n/a";
+
+    document.querySelectorAll(".presets button").forEach((b) => {
+      const on = Math.abs(+b.dataset.t - state.theta) < 1e-6 && Math.abs(+b.dataset.p - state.phi) < 1e-6;
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  function niceStep(span) {
+    const raw = span / 5;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const n = raw / mag;
+    return (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * mag;
+  }
+
+  function drawStrip(r) {
+    const cv = $("strip");
+    const w = cv.clientWidth, h = 132;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const ink = cssVar("--ink"), muted = cssVar("--muted");
+    const colA = cssVar("--domain-a"), colB = cssVar("--domain-b");
+    ctx.font = `12.5px ${cssVar("--sans")}`;
+    ctx.textBaseline = "alphabetic";
+
+    if (!(r.lamReal > 1e-9)) {
+      ctx.fillStyle = muted;
+      ctx.fillText("Λ_real is zero here: the beam is parallel to the domain walls.", 0, 60);
+      return;
+    }
+    let W;
+    if (Number.isFinite(r.lamEff)) W = clamp(2.5 * r.lamEff, 4 * r.lamReal, 60 * r.lamReal);
+    else W = 8 * r.lamReal;
+
+    const rows = [
+      { y: 20, label: `Along x (the grating): period ${fmt(r.lamReal)} µm`, period: r.lamReal },
+      { y: 70, label: `Along the beam: period ${Number.isFinite(r.lamEff) ? fmt(r.lamEff) + " µm" : "∞"}`, period: r.lamEff },
+    ];
+    const bandH = 24;
+    rows.forEach((row) => {
+      ctx.fillStyle = ink;
+      ctx.fillText(row.label, 0, row.y - 5);
+      for (let px = 0; px < w; px++) {
+        const x = (px / w) * W;
+        const up = Math.cos((2 * Math.PI * x) / row.period) >= 0;
+        ctx.fillStyle = up ? colA : colB;
+        ctx.fillRect(px, row.y, 1.05, bandH);
+      }
+    });
+    // axis
+    const yAx = 70 + bandH + 8;
+    ctx.strokeStyle = muted;
+    ctx.fillStyle = muted;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, yAx + 0.5);
+    ctx.lineTo(w, yAx + 0.5);
+    ctx.stroke();
+    const step = niceStep(W);
+    ctx.textAlign = "center";
+    for (let v = 0; v <= W + 1e-9; v += step) {
+      const px = (v / W) * w;
+      ctx.beginPath();
+      ctx.moveTo(px + 0.5, yAx);
+      ctx.lineTo(px + 0.5, yAx + 5);
+      ctx.stroke();
+      const txt = `${+v.toPrecision(4)}`;
+      const tw = ctx.measureText(txt).width;
+      ctx.fillText(txt, clamp(px, tw / 2, w - tw / 2 - 24), yAx + 18);
+    }
+    ctx.textAlign = "right";
+    ctx.fillText("µm", w, yAx + 18);
+    ctx.textAlign = "left";
+  }
+
+  // -------------------------------------------------------------- 3D scene
+  const hasThree = typeof THREE !== "undefined";
+  let render3D = () => {};
+  let update3D = () => {};
+  let recolor3D = () => {};
+
+  if (hasThree) {
+    const canvas = $("view");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 300);
+    let yaw = 0.62, pitch = 0.38, dist = 68, fit = 1;
+    function placeCamera() {
+      const d = dist * fit;
+      camera.position.set(
+        d * Math.cos(pitch) * Math.sin(yaw),
+        d * Math.sin(pitch),
+        d * Math.cos(pitch) * Math.cos(yaw)
+      );
+      camera.lookAt(0, 0, 0);
+    }
+
+    // crystal frame (x, y, z) -> three.js (x, z, -y): right-handed, z up
+    const T = (x, y, z) => new THREE.Vector3(x, z, -y);
+    const UP = new THREE.Vector3(0, 1, 0);
+
+    const LX = 30, LY = 4, LZ = 4;             // crystal size in mm: x length, y width, z thickness
+    const NPER = 9, P = LX / NPER;             // schematic grating period
+    const hx = LX / 2, hy = LY / 2, hz = LZ / 2;
+    const BEAM_EXT = 5, KLEN = 5;
+
+    const matA = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide });
+    const matB = matA.clone();
+    const slabGeo = new THREE.BoxGeometry(P / 2, LZ, LY);
+    const polArrows = [];
+    for (let i = 0; i < 2 * NPER; i++) {
+      const isA = i % 2 === 0;
+      const m = new THREE.Mesh(slabGeo, isA ? matA : matB);
+      m.position.copy(T(-hx + (i + 0.5) * (P / 2), 0, 0));
+      m.renderOrder = 1;
+      scene.add(m);
+      const dir = isA ? UP : UP.clone().negate();
+      const a = new THREE.ArrowHelper(dir, T(-hx + (i + 0.5) * (P / 2), -hy + 0.15, isA ? -0.75 : 0.75),
+        1.5, 0x000000, 0.3, 0.16);
+      a.userData.isA = isA;
+      scene.add(a);
+      polArrows.push(a);
+    }
+    const edgeMat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.55 });
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(LX, LZ, LY)), edgeMat);
+    scene.add(edges);
+
+    // dimension marks for the crystal (mm)
+    const dimMat = new THREE.LineBasicMaterial();
+    const DOFF = 1.3, TK = 0.45;
+    function addDim(a, b, tick) {
+      const pts = [a, b, a.clone().sub(tick), a.clone().add(tick), b.clone().sub(tick), b.clone().add(tick)];
+      scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), dimMat));
+    }
+    addDim(T(-hx, -hy, -hz - DOFF), T(hx, -hy, -hz - DOFF), T(0, 0, TK));
+    addDim(T(hx + DOFF, -hy, -hz), T(hx + DOFF, -hy, hz), T(TK, 0, 0));
+    addDim(T(hx, -hy, hz + DOFF), T(hx, hy, hz + DOFF), T(0, 0, TK));
+
+    // beam
+    const beamMat = new THREE.MeshBasicMaterial();
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 1, 20), beamMat);
+    scene.add(beam);
+    const beamHead = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.1, 24), beamMat);
+    scene.add(beamHead);
+    const spanMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.42, depthWrite: false });
+    const span = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 1, 24), spanMat);
+    span.renderOrder = 2;
+    scene.add(span);
+
+    // wall-crossing markers
+    const dotMat = new THREE.MeshBasicMaterial();
+    const dotGeo = new THREE.SphereGeometry(0.3, 18, 14);
+    const dots = [];
+    for (let k = 1; k < 2 * NPER; k++) {
+      const d = new THREE.Mesh(dotGeo, dotMat);
+      d.renderOrder = 3;
+      scene.add(d);
+      dots.push({ mesh: d, xw: -hx + k * (P / 2) });
+    }
+
+    // grating vector and its projection on the beam
+    const kArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), KLEN, 0x000000, 0.8, 0.42);
+    scene.add(kArrow);
+    const projMat = new THREE.LineDashedMaterial({ dashSize: 0.18, gapSize: 0.12 });
+    const projGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+    const projLine = new THREE.Line(projGeo, projMat);
+    scene.add(projLine);
+
+    // axis triad at a corner
+    const triO = T(-hx - 3.6, -hy - 2.4, -hz - 1.8);
+    const axX = new THREE.ArrowHelper(T(1, 0, 0).normalize(), triO, 3.2, 0x000000, 0.55, 0.3);
+    const axY = new THREE.ArrowHelper(T(0, 1, 0).normalize(), triO, 3.2, 0x000000, 0.55, 0.3);
+    const axZ = new THREE.ArrowHelper(T(0, 0, 1).normalize(), triO, 3.2, 0x000000, 0.55, 0.3);
+    scene.add(axX, axY, axZ);
+
+    // text labels
+    const labels = [];
+    function makeLabel(text, colorVar, pos, italic, scale) {
+      const mat = new THREE.SpriteMaterial({ transparent: true, depthTest: false });
+      const sp = new THREE.Sprite(mat);
+      sp.position.copy(pos);
+      sp.renderOrder = 10;
+      sp.userData = { text, colorVar, italic, scale: scale || 1 };
+      scene.add(sp);
+      labels.push(sp);
+      return sp;
+    }
+    function drawLabel(sp) {
+      const { text, colorVar, italic, scale } = sp.userData;
+      const c = document.createElement("canvas");
+      const fontPx = 64;
+      const ctx = c.getContext("2d");
+      const font = `${italic ? "italic " : ""}600 ${fontPx}px ${cssVar("--serif")}`;
+      ctx.font = font;
+      const w = Math.ceil(ctx.measureText(text).width) + 16;
+      c.width = w;
+      c.height = fontPx + 24;
+      ctx.font = font;
+      ctx.fillStyle = cssVar(colorVar);
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, 8, c.height / 2 + 2);
+      if (sp.material.map) sp.material.map.dispose();
+      sp.material.map = new THREE.CanvasTexture(c);
+      sp.material.needsUpdate = true;
+      const hWorld = 1.2 * scale;
+      sp.scale.set((hWorld * c.width) / c.height, hWorld, 1);
+    }
+    const tip = (o, d, l) => o.clone().add(d.clone().multiplyScalar(l));
+    makeLabel("x", "--ink", tip(triO, T(1, 0, 0), 4.1), true);
+    makeLabel("y", "--ink", tip(triO, T(0, 1, 0), 4.1), true);
+    makeLabel("z (poling)", "--ink", tip(triO, T(0, 0, 1), 4.2), true, 0.9);
+    makeLabel("K", "--grating", T(KLEN + 0.9, 0, 0.7), true);
+    makeLabel(`${LX} mm (x)`, "--muted", T(hx * 0.5, -hy, -hz - DOFF - 1.1), false, 0.8);
+    makeLabel(`${LZ} mm (z)`, "--muted", T(hx + DOFF + 2.0, -hy, -hz * 0.8), false, 0.8);
+    makeLabel(`${LY} mm (y)`, "--muted", T(hx, 0, hz + DOFF + 1.1), false, 0.8);
+    const sLabel = makeLabel("s", "--beam", new THREE.Vector3(), true);
+
+    recolor3D = function () {
+      const cA = new THREE.Color(cssVar("--domain-a"));
+      const cB = new THREE.Color(cssVar("--domain-b"));
+      const ink = new THREE.Color(cssVar("--ink"));
+      const beamC = new THREE.Color(cssVar("--beam"));
+      const gr = new THREE.Color(cssVar("--grating"));
+      matA.color.copy(cA);
+      matB.color.copy(cB);
+      const op = parseFloat(cssVar("--slab-opacity")) || 0.2;
+      matA.opacity = op;
+      matB.opacity = op;
+      polArrows.forEach((a) => a.setColor(a.userData.isA ? cA : cB));
+      edgeMat.color.copy(ink);
+      dimMat.color.copy(new THREE.Color(cssVar("--muted")));
+      beamMat.color.copy(beamC);
+      spanMat.color.copy(beamC);
+      dotMat.color.copy(ink);
+      kArrow.setColor(gr);
+      projMat.color.copy(gr);
+      [axX, axY, axZ].forEach((a) => a.setColor(ink));
+      labels.forEach(drawLabel);
+    };
+
+    update3D = function (r) {
+      const s = r.s;
+      const s3 = T(s.x, s.y, s.z).normalize();
+      const q = new THREE.Quaternion().setFromUnitVectors(UP, s3);
+
+      // where the beam is inside the block (slab method, block centred on the origin)
+      let tmin = -Infinity, tmax = Infinity;
+      [[s.x, hx], [s.y, hy], [s.z, hz]].forEach(([d, h]) => {
+        if (Math.abs(d) > 1e-9) {
+          const t1 = -h / d, t2 = h / d;
+          tmin = Math.max(tmin, Math.min(t1, t2));
+          tmax = Math.min(tmax, Math.max(t1, t2));
+        }
+      });
+
+      // beam runs through the crystal and BEAM_EXT mm beyond each face
+      const bA = tmin - BEAM_EXT, bB = tmax + BEAM_EXT;
+      beam.quaternion.copy(q);
+      beam.scale.set(1, bB - bA, 1);
+      beam.position.copy(s3.clone().multiplyScalar((bA + bB) / 2));
+      beamHead.quaternion.copy(q);
+      beamHead.position.copy(s3.clone().multiplyScalar(bB + 0.55));
+      sLabel.position.copy(s3.clone().multiplyScalar(bB + 2.2));
+
+      dots.forEach((o) => {
+        if (Math.abs(s.x) < 1e-9) { o.mesh.visible = false; return; }
+        const t = o.xw / s.x;
+        o.mesh.visible = t >= tmin - 1e-9 && t <= tmax + 1e-9;
+        if (o.mesh.visible) o.mesh.position.copy(s3.clone().multiplyScalar(t));
+      });
+
+      // one effective period along the beam, between the walls at x = -P/2 and x = +P/2
+      if (r.c > 1e-6) {
+        const a0 = Math.max(-P / (2 * r.c), tmin), a1 = Math.min(P / (2 * r.c), tmax);
+        const len = a1 - a0;
+        span.visible = len > 1e-6;
+        span.scale.set(1, Math.max(len, 1e-6), 1);
+        span.quaternion.copy(q);
+        span.position.copy(s3.clone().multiplyScalar((a0 + a1) / 2));
+      } else {
+        span.visible = false;
+      }
+
+      // projection of K onto the beam
+      const kTip = new THREE.Vector3(KLEN, 0, 0);
+      const foot = s3.clone().multiplyScalar(KLEN * s.x);
+      projGeo.setFromPoints([kTip, foot]);
+      projLine.computeLineDistances();
+    };
+
+    function resize() {
+      const box = canvas.parentElement.getBoundingClientRect();
+      const w = Math.max(1, box.width), h = Math.max(1, box.height);
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      fit = clamp(1.15 / camera.aspect, 1, 1.9);
+      placeCamera();
+      camera.updateProjectionMatrix();
+      render3D();
+    }
+    render3D = function () { renderer.render(scene, camera); };
+
+    // orbit by dragging, zoom by wheel, keyboard for both
+    let drag = null;
+    canvas.addEventListener("pointerdown", (e) => {
+      drag = { x: e.clientX, y: e.clientY };
+      canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      yaw -= (e.clientX - drag.x) * 0.008;
+      pitch = clamp(pitch + (e.clientY - drag.y) * 0.008, -1.45, 1.45);
+      drag = { x: e.clientX, y: e.clientY };
+      placeCamera();
+      render3D();
+    });
+    const endDrag = () => { drag = null; };
+    canvas.addEventListener("pointerup", endDrag);
+    canvas.addEventListener("pointercancel", endDrag);
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      dist = clamp(dist * (1 + e.deltaY * 0.0012), 25, 130);
+      placeCamera();
+      render3D();
+    }, { passive: false });
+    canvas.addEventListener("keydown", (e) => {
+      const k = e.key;
+      if (k === "ArrowLeft") yaw += 0.08;
+      else if (k === "ArrowRight") yaw -= 0.08;
+      else if (k === "ArrowUp") pitch = clamp(pitch + 0.08, -1.45, 1.45);
+      else if (k === "ArrowDown") pitch = clamp(pitch - 0.08, -1.45, 1.45);
+      else if (k === "+" || k === "=") dist = clamp(dist * 0.92, 25, 130);
+      else if (k === "-" || k === "_") dist = clamp(dist * 1.08, 25, 130);
+      else return;
+      e.preventDefault();
+      placeCamera();
+      render3D();
+    });
+
+    placeCamera();
+    new ResizeObserver(resize).observe(canvas.parentElement);
+  } else {
+    const hint = document.querySelector(".hint");
+    hint.textContent = "The 3D view could not load (three.js unavailable). The calculator still works.";
+  }
+
+  // -------------------------------------------------------------- wiring
+  function refresh() {
+    const r = compute();
+    updatePanel(r);
+    drawStrip(r);
+    update3D(r);
+    render3D();
+  }
+
+  function syncInputs() {
+    $("theta").value = state.theta;
+    $("thetaNum").value = state.theta;
+    $("phi").value = state.phi;
+    $("phiNum").value = state.phi;
+    $("period").value = state.period;
+    $("lamOut").value = state.lamOut;
+    $("nOut").value = state.nOut;
+    $("len").value = state.len;
+  }
+
+  function bindPair(rangeId, numId, key, lo, hi) {
+    $(rangeId).addEventListener("input", (e) => {
+      state[key] = +e.target.value;
+      $(numId).value = state[key];
+      refresh();
+    });
+    $(numId).addEventListener("input", (e) => {
+      const v = parseFloat(e.target.value);
+      if (!Number.isFinite(v)) return;
+      state[key] = clamp(v, lo, hi);
+      $(rangeId).value = state[key];
+      refresh();
+    });
+  }
+  bindPair("theta", "thetaNum", "theta", 0, 180);
+  bindPair("phi", "phiNum", "phi", 0, 360);
+
+  function bindNum(id, key, lo) {
+    $(id).addEventListener("input", (e) => {
+      const v = parseFloat(e.target.value);
+      if (!Number.isFinite(v) || v < lo) return;
+      state[key] = v;
+      refresh();
+    });
+  }
+  bindNum("period", "period", 1e-3);
+  bindNum("lamOut", "lamOut", 1e-3);
+  bindNum("nOut", "nOut", 1);
+  bindNum("len", "len", 1e-3);
+
+  document.querySelectorAll('input[name="mode"]').forEach((el) => {
+    el.addEventListener("change", (e) => {
+      const r = compute();
+      const newMode = e.target.value;
+      // carry the current number across so the physics stays the same
+      if (newMode === "real" && r.lamReal > 1e-9) state.period = +r.lamReal.toFixed(4);
+      if (newMode === "eff" && Number.isFinite(r.lamEff)) state.period = +r.lamEff.toFixed(4);
+      state.mode = newMode;
+      $("periodLabel").innerHTML = newMode === "real" ? "Λ<sub>real</sub> (µm)" : "Λ<sub>eff</sub> (µm)";
+      $("period").value = state.period;
+      $("periodHint").hidden = newMode === "real";
+      refresh();
+    });
+  });
+
+  document.querySelectorAll(".presets button").forEach((b) => {
+    b.addEventListener("click", () => {
+      state.theta = +b.dataset.t;
+      state.phi = +b.dataset.p;
+      syncInputs();
+      refresh();
+    });
+  });
+
+  function onThemeChange() {
+    recolor3D();
+    refresh();
+  }
+  if (window.matchMedia) {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    if (mq.addEventListener) mq.addEventListener("change", onThemeChange);
+  }
+  new MutationObserver(onThemeChange).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  window.addEventListener("resize", () => drawStrip(compute()));
+  new ResizeObserver(() => drawStrip(compute())).observe($("strip"));
+
+  syncInputs();
+  recolor3D();
+  refresh();
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => { recolor3D(); refresh(); });
+  }
+})();
+</script>
+</body>
+</html>
