@@ -303,6 +303,33 @@
     </div>
     <p class="hint-small" style="margin:0">K stays in the xy-plane because poling is along z.</p>
 
+    <h2>Crystal size</h2>
+    <div class="presets" role="group" aria-label="Crystal size">
+      <button type="button" id="size30">30 mm long, 1 mm aperture</button>
+      <button type="button" id="size12">12 mm long, 4 mm aperture</button>
+    </div>
+    <p class="hint-small" style="margin:6px 0 0">Length and aperture can't both be maximized.</p>
+
+    <h2>Crystal orientation</h2>
+    <div class="control">
+      <div class="control-head">
+        <label for="thetaCNum"><span class="sym">θ</span><sub>c</sub>, angle of the crystal length from z (deg)</label>
+        <input type="number" id="thetaCNum" min="0" max="180" step="0.1">
+      </div>
+      <input type="range" id="thetaC" min="0" max="180" step="0.1" aria-label="crystal theta in degrees">
+    </div>
+    <div class="control">
+      <div class="control-head">
+        <label for="phiCNum"><span class="sym">φ</span><sub>c</sub>, angle from x in the xy-plane (deg)</label>
+        <input type="number" id="phiCNum" min="0" max="360" step="0.1">
+      </div>
+      <input type="range" id="phiC" min="0" max="360" step="0.1" aria-label="crystal phi in degrees">
+    </div>
+    <div class="presets" role="group" aria-label="Crystal orientation presets">
+      <button type="button" id="cutStd">Along x (standard)</button>
+      <button type="button" id="cutBeam">Cut along the beam</button>
+    </div>
+
     <h2>Period</h2>
     <fieldset class="mode">
       <legend>Which period do you know?</legend>
@@ -347,7 +374,7 @@
   const DEG = Math.PI / 180;
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
-  const state = { theta: 17.4, phi: 4.6, psi: 0, mode: "eff", period: 30, lamOut: 0.775, nOut: 1.84, len: 5 };
+  const state = { theta: 17.4, phi: 4.6, psi: 0, thetaC: 90, phiC: 0, size: 30, mode: "eff", period: 30, lamOut: 0.775, nOut: 1.84, len: 5 };
 
   function cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -424,10 +451,14 @@
     $("tilt").textContent = Number.isFinite(r.tilt) ? `${(r.tilt / DEG).toFixed(2)}°` : "no solution";
     $("walk").textContent = Number.isFinite(r.walk) ? `${fmt(r.walk, 0)} µm` : "n/a";
 
-    document.querySelectorAll(".presets button").forEach((b) => {
+    document.querySelectorAll(".presets button[data-t]").forEach((b) => {
       const on = Math.abs(+b.dataset.t - state.theta) < 1e-6 && Math.abs(+b.dataset.p - state.phi) < 1e-6;
       b.setAttribute("aria-pressed", on ? "true" : "false");
     });
+    $("cutStd").setAttribute("aria-pressed", state.thetaC === 90 && state.phiC === 0 ? "true" : "false");
+    $("cutBeam").setAttribute("aria-pressed", state.thetaC === state.theta && state.phiC === state.phi ? "true" : "false");
+    $("size30").setAttribute("aria-pressed", state.size === 30 ? "true" : "false");
+    $("size12").setAttribute("aria-pressed", state.size === 12 ? "true" : "false");
   }
 
   function niceStep(span) {
@@ -506,6 +537,7 @@
   let render3D = () => {};
   let update3D = () => {};
   let recolor3D = () => {};
+  let setCrystalSize = () => {};
 
   if (hasThree) {
     const canvas = $("view");
@@ -528,95 +560,173 @@
     const T = (x, y, z) => new THREE.Vector3(x, z, -y);
     const UP = new THREE.Vector3(0, 1, 0);
 
-    const LX = 30, LY = 4, LZ = 4;             // crystal size in mm: x length, y width, z thickness
-    const NPER = 9, P = LX / NPER;             // schematic grating period
-    const hx = LX / 2, hy = LY / 2, hz = LZ / 2;
+    let LX = 30, LY = 1, LZ = 1;               // crystal size in mm: x length, y width, z thickness
+    const NPER = 9;
+    let P = LX / NPER;                         // schematic grating period
+    let hx = LX / 2, hy = LY / 2, hz = LZ / 2;
     const BEAM_EXT = 5, KLEN = 5;
 
     const matA = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide });
     const matB = matA.clone();
     // domain slabs: walls are planes perpendicular to K (K in the xy-plane), cut to the crystal
-    let slabs = [], polArrows = [], wallUs = [], builtPsi = null;
-    function clipHalf(poly, kx, ky, d, sign) {
-      const out = [];
+    let slabs = [], polArrows = [], wallUs = [], builtKey = null;
+    const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    // crystal block axes in the crystallographic frame: length L at (theta_c, phi_c),
+    // thickness Tk as close to z as possible, width W completes the right-handed set
+    function crystalAxes(thc, phc) {
+      const t = thc * DEG, p = phc * DEG;
+      const L = [Math.sin(t) * Math.cos(p), Math.sin(t) * Math.sin(p), Math.cos(t)];
+      let Tk = [-L[2] * L[0], -L[2] * L[1], 1 - L[2] * L[2]];
+      let n = Math.hypot(Tk[0], Tk[1], Tk[2]);
+      if (n < 1e-6) { Tk = [-Math.cos(p), -Math.sin(p), 0]; n = 1; }
+      Tk = Tk.map((v) => v / n);
+      return { L, W: cross3(Tk, L), Tk };
+    }
+    let axes = crystalAxes(90, 0);
+    function area3(poly) {
+      let c = [0, 0, 0];
       for (let i = 0; i < poly.length; i++) {
-        const a = poly[i], b = poly[(i + 1) % poly.length];
-        const fa = sign * (kx * a[0] + ky * a[1] - d), fb = sign * (kx * b[0] + ky * b[1] - d);
-        if (fa >= 0) out.push(a);
-        if ((fa >= 0) !== (fb >= 0)) {
-          const t = fa / (fa - fb);
-          out.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]);
+        const q = cross3(poly[i], poly[(i + 1) % poly.length]);
+        c = [c[0] + q[0], c[1] + q[1], c[2] + q[2]];
+      }
+      return Math.hypot(c[0], c[1], c[2]) / 2;
+    }
+    const close3 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < 1e-7;
+    // cut a convex polyhedron (list of face polygons) by the half-space sign*(n.p - d) >= 0
+    function clipPolyhedron(faces, n, d, sign) {
+      const out = [], cap = [];
+      let faceOnPlane = false;
+      const f = (q) => sign * (dot3(n, q) - d);
+      faces.forEach((face) => {
+        const res = [];
+        for (let i = 0; i < face.length; i++) {
+          const a = face[i], b = face[(i + 1) % face.length];
+          const fa = f(a), fb = f(b);
+          if (fa >= -1e-9) { res.push(a); if (Math.abs(fa) <= 1e-9) cap.push(a); }
+          if ((fa > 1e-9 && fb < -1e-9) || (fa < -1e-9 && fb > 1e-9)) {
+            const t = fa / (fa - fb);
+            const q = [0, 1, 2].map((j) => a[j] + t * (b[j] - a[j]));
+            res.push(q);
+            cap.push(q);
+          }
+        }
+        const clean = res.filter((q, i) => !close3(q, res[(i + 1) % res.length]));
+        if (clean.length >= 3 && area3(clean) > 1e-9) {
+          out.push(clean);
+          if (clean.every((q) => Math.abs(f(q)) <= 1e-9)) faceOnPlane = true;
+        }
+      });
+      if (!faceOnPlane) {
+        const pts = cap.filter((q, i) => cap.findIndex((r) => close3(q, r)) === i);
+        if (pts.length >= 3) {
+          const c = [0, 1, 2].map((j) => pts.reduce((acc, q) => acc + q[j], 0) / pts.length);
+          const ref = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+          let u = cross3(n, ref);
+          const un = Math.hypot(u[0], u[1], u[2]);
+          u = u.map((v) => v / un);
+          const v = cross3(n, u);
+          pts.sort((a, b) => {
+            const da = [a[0] - c[0], a[1] - c[1], a[2] - c[2]], db = [b[0] - c[0], b[1] - c[1], b[2] - c[2]];
+            return Math.atan2(dot3(da, v), dot3(da, u)) - Math.atan2(dot3(db, v), dot3(db, u));
+          });
+          if (area3(pts) > 1e-9) out.push(pts);
         }
       }
-      return out.filter((q, i, arr) => {
-        const n = arr[(i + 1) % arr.length];
-        return Math.hypot(q[0] - n[0], q[1] - n[1]) > 1e-9;
-      });
+      return out;
     }
-    function polyArea(poly) {
-      let A = 0;
-      for (let i = 0; i < poly.length; i++) {
-        const a = poly[i], b = poly[(i + 1) % poly.length];
-        A += a[0] * b[1] - b[0] * a[1];
-      }
-      return Math.abs(A) / 2;
-    }
-    function buildSlabs(psi) {
+    function buildSlabs(psi, thc, phc) {
       slabs.forEach((m) => { scene.remove(m); m.geometry.dispose(); });
       polArrows.forEach((a) => { scene.remove(a); a.line.material.dispose(); a.cone.material.dispose(); });
       slabs = []; polArrows = []; wallUs = [];
-      const kx = Math.cos(psi * DEG), ky = Math.sin(psi * DEG);
+      axes = crystalAxes(thc, phc);
+      const { L, W, Tk } = axes;
+      const K = [Math.cos(psi * DEG), Math.sin(psi * DEG), 0];
+      const kL = dot3(K, L), kW = dot3(K, W), kT = dot3(K, Tk);
       const half = P / 2;
-      const e = hx * Math.abs(kx) + hy * Math.abs(ky);   // half-extent of the crystal along K
-      const rect = [[-hx, -hy], [hx, -hy], [hx, hy], [-hx, hy]];
+      const e = hx * Math.abs(kL) + hy * Math.abs(kW) + hz * Math.abs(kT);   // half-extent of the crystal along K
+      const V = (a, b, c) => [0, 1, 2].map((i) => a * hx * L[i] + b * hy * W[i] + c * hz * Tk[i]);
+      const box = [
+        [V(-1, -1, -1), V(1, -1, -1), V(1, 1, -1), V(-1, 1, -1)],
+        [V(-1, -1, 1), V(1, -1, 1), V(1, 1, 1), V(-1, 1, 1)],
+        [V(-1, -1, -1), V(1, -1, -1), V(1, -1, 1), V(-1, -1, 1)],
+        [V(-1, 1, -1), V(1, 1, -1), V(1, 1, 1), V(-1, 1, 1)],
+        [V(-1, -1, -1), V(-1, 1, -1), V(-1, 1, 1), V(-1, -1, 1)],
+        [V(1, -1, -1), V(1, 1, -1), V(1, 1, 1), V(1, -1, 1)],
+      ];
       const cA = new THREE.Color(cssVar("--domain-a")), cB = new THREE.Color(cssVar("--domain-b"));
       const mLo = Math.floor(-e / half - 1e-9), mHi = Math.ceil(e / half + 1e-9) - 1;
       for (let m = mLo; m <= mHi; m++) {
         const u0 = m * half, u1 = (m + 1) * half;
         if (m > mLo && Math.abs(u0) < e - 1e-9) wallUs.push(u0);
-        const poly = clipHalf(clipHalf(rect, kx, ky, u0, 1), kx, ky, u1, -1);
-        if (poly.length < 3 || polyArea(poly) < 1e-6) continue;
+        const faces = clipPolyhedron(clipPolyhedron(box, K, u0, 1), K, u1, -1);
+        const ks = faces.flat().map((q) => dot3(K, q));
+        if (!ks.length || Math.max(...ks) - Math.min(...ks) < 1e-6) continue;   // no volume inside the crystal
+        const pos = [];
+        faces.forEach((fc) => {
+          for (let i = 1; i < fc.length - 1; i++) [fc[0], fc[i], fc[i + 1]].forEach((q) => pos.push(q[0], q[2], -q[1]));
+        });
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
         const isA = Math.abs(m) % 2 === 1;
-        const geo = new THREE.ExtrudeGeometry(new THREE.Shape(poly.map(([x, y]) => new THREE.Vector2(x, y))),
-          { depth: LZ, bevelEnabled: false, steps: 1 });
-        geo.translate(0, 0, -hz);
-        geo.rotateX(-Math.PI / 2);                        // crystal (x, y, z) -> three.js (x, z, -y)
         const mesh = new THREE.Mesh(geo, isA ? matA : matB);
         mesh.renderOrder = 1;
         scene.add(mesh);
         slabs.push(mesh);
-        // poling arrow on the slab's mid-plane, near the front face
-        const um = (u0 + u1) / 2, ya = -hy + 0.15;
-        const xa = Math.abs(kx) > 1e-6 ? (um - ky * ya) / kx : NaN;
-        let px, py;
-        if (Number.isFinite(xa) && xa >= -hx && xa <= hx) { px = xa; py = ya; }
-        else {
-          px = poly.reduce((acc, q) => acc + q[0], 0) / poly.length;
-          py = poly.reduce((acc, q) => acc + q[1], 0) / poly.length;
+        // poling arrow (always along crystallographic z) on the slab's mid-plane, near the front face
+        const um = (u0 + u1) / 2, wa = -hy + 0.15;
+        let pa = null;
+        if (Math.abs(kL) > 1e-6) {
+          const l = (um - wa * kW) / kL;
+          if (l >= -hx && l <= hx) pa = [0, 1, 2].map((i) => l * L[i] + wa * W[i]);
         }
-        const a = new THREE.ArrowHelper(isA ? UP : UP.clone().negate(), T(px, py, isA ? -0.75 : 0.75),
-          1.5, 0x000000, 0.3, 0.16);
+        if (!pa) {
+          const all = faces.flat();
+          pa = [0, 1, 2].map((j) => all.reduce((acc, q) => acc + q[j], 0) / all.length);
+        }
+        const aL = Math.min(1.5, 0.8 * LZ);
+        const a = new THREE.ArrowHelper(isA ? UP : UP.clone().negate(), T(pa[0], pa[1], pa[2] + (isA ? -aL / 2 : aL / 2)),
+          aL, 0x000000, 0.3 * aL / 1.5, 0.16 * aL / 1.5);
         a.userData.isA = isA;
         a.setColor(isA ? cA : cB);
         scene.add(a);
         polArrows.push(a);
       }
-      builtPsi = psi;
+      // outline and dimension marks follow the block
+      const basis = new THREE.Matrix4().makeBasis(T(L[0], L[1], L[2]), T(Tk[0], Tk[1], Tk[2]), T(W[0], W[1], W[2]).negate());
+      crystalGroup.quaternion.setFromRotationMatrix(basis);
+      const std = thc === 90 && phc === 0;
+      [[dimLabelX, `${LX} mm (${std ? "x" : "length"})`], [dimLabelZ, `${LZ} mm (${std ? "z" : "thickness"})`],
+        [dimLabelY, `${LY} mm (${std ? "y" : "width"})`]].forEach(([sp, txt]) => {
+        if (sp && sp.userData.text !== txt) { sp.userData.text = txt; drawLabel(sp); }
+      });
+      builtKey = `${psi},${thc},${phc},${LX},${LZ}`;
     }
     const edgeMat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.55 });
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(LX, LZ, LY)), edgeMat);
-    scene.add(edges);
+    const crystalGroup = new THREE.Group();
+    scene.add(crystalGroup);
+    crystalGroup.add(edges);
+    let dimLabelX = null, dimLabelY = null, dimLabelZ = null;
 
     // dimension marks for the crystal (mm)
     const dimMat = new THREE.LineBasicMaterial();
     const DOFF = 1.3, TK = 0.45;
+    let dimLines = [];
     function addDim(a, b, tick) {
       const pts = [a, b, a.clone().sub(tick), a.clone().add(tick), b.clone().sub(tick), b.clone().add(tick)];
-      scene.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), dimMat));
+      const ln = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), dimMat);
+      crystalGroup.add(ln);
+      dimLines.push(ln);
     }
-    addDim(T(-hx, -hy, -hz - DOFF), T(hx, -hy, -hz - DOFF), T(0, 0, TK));
-    addDim(T(hx + DOFF, -hy, -hz), T(hx + DOFF, -hy, hz), T(TK, 0, 0));
-    addDim(T(hx, -hy, hz + DOFF), T(hx, hy, hz + DOFF), T(0, 0, TK));
+    function addDims() {
+      dimLines.forEach((ln) => { crystalGroup.remove(ln); ln.geometry.dispose(); });
+      dimLines = [];
+      addDim(T(-hx, -hy, -hz - DOFF), T(hx, -hy, -hz - DOFF), T(0, 0, TK));
+      addDim(T(hx + DOFF, -hy, -hz), T(hx + DOFF, -hy, hz), T(TK, 0, 0));
+      addDim(T(hx, -hy, hz + DOFF), T(hx, hy, hz + DOFF), T(0, 0, TK));
+    }
+    addDims();
 
     // beam
     const beamMat = new THREE.MeshBasicMaterial();
@@ -640,6 +750,8 @@
       scene.add(d);
       dots.push(d);
     }
+    const scaleDots = () => dots.forEach((d) => d.scale.setScalar(Math.min(1, (0.25 * Math.min(LY, LZ)) / 0.3)));
+    scaleDots();
 
     // grating vector and its projection on the beam
     const kArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), KLEN, 0x000000, 0.8, 0.42);
@@ -650,7 +762,7 @@
     scene.add(projLine);
 
     // axis triad at a corner
-    const triO = T(-hx - 3.6, -hy - 2.4, -hz - 1.8);
+    let triO = T(-hx - 3.6, -hy - 2.4, -hz - 1.8);
     const axX = new THREE.ArrowHelper(T(1, 0, 0).normalize(), triO, 3.2, 0x000000, 0.55, 0.3);
     const axY = new THREE.ArrowHelper(T(0, 1, 0).normalize(), triO, 3.2, 0x000000, 0.55, 0.3);
     const axZ = new THREE.ArrowHelper(T(0, 0, 1).normalize(), triO, 3.2, 0x000000, 0.55, 0.3);
@@ -689,14 +801,33 @@
       sp.scale.set((hWorld * c.width) / c.height, hWorld, 1);
     }
     const tip = (o, d, l) => o.clone().add(d.clone().multiplyScalar(l));
-    makeLabel("x", "--ink", tip(triO, T(1, 0, 0), 4.1), true);
-    makeLabel("y", "--ink", tip(triO, T(0, 1, 0), 4.1), true);
-    makeLabel("z (poling)", "--ink", tip(triO, T(0, 0, 1), 4.2), true, 0.9);
+    const triLabX = makeLabel("x", "--ink", tip(triO, T(1, 0, 0), 4.1), true);
+    const triLabY = makeLabel("y", "--ink", tip(triO, T(0, 1, 0), 4.1), true);
+    const triLabZ = makeLabel("z (poling)", "--ink", tip(triO, T(0, 0, 1), 4.2), true, 0.9);
     const kLabel = makeLabel("K", "--grating", T(KLEN + 0.9, 0, 0.7), true);
-    makeLabel(`${LX} mm (x)`, "--muted", T(hx * 0.5, -hy, -hz - DOFF - 1.1), false, 0.8);
-    makeLabel(`${LZ} mm (z)`, "--muted", T(hx + DOFF + 2.0, -hy, -hz * 0.8), false, 0.8);
-    makeLabel(`${LY} mm (y)`, "--muted", T(hx, 0, hz + DOFF + 1.1), false, 0.8);
+    dimLabelX = makeLabel(`${LX} mm (x)`, "--muted", T(hx * 0.5, -hy, -hz - DOFF - 1.1), false, 0.8);
+    dimLabelZ = makeLabel(`${LZ} mm (z)`, "--muted", T(hx + DOFF + 2.0, -hy, -hz * 0.8), false, 0.8);
+    dimLabelY = makeLabel(`${LY} mm (y)`, "--muted", T(hx, 0, hz + DOFF + 1.1), false, 0.8);
+    crystalGroup.add(dimLabelX, dimLabelZ, dimLabelY);
     const sLabel = makeLabel("s", "--beam", new THREE.Vector3(), true);
+
+    setCrystalSize = function (lx, ap) {
+      LX = lx; LY = ap; LZ = ap;
+      P = LX / NPER;
+      hx = LX / 2; hy = LY / 2; hz = LZ / 2;
+      edges.geometry.dispose();
+      edges.geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(LX, LZ, LY));
+      addDims();
+      dimLabelX.position.copy(T(hx * 0.5, -hy, -hz - DOFF - 1.1));
+      dimLabelZ.position.copy(T(hx + DOFF + 2.0, -hy, -hz * 0.8));
+      dimLabelY.position.copy(T(hx, 0, hz + DOFF + 1.1));
+      triO = T(-hx - 3.6, -hy - 2.4, -hz - 1.8);
+      [axX, axY, axZ].forEach((a) => a.position.copy(triO));
+      triLabX.position.copy(tip(triO, T(1, 0, 0), 4.1));
+      triLabY.position.copy(tip(triO, T(0, 1, 0), 4.1));
+      triLabZ.position.copy(tip(triO, T(0, 0, 1), 4.2));
+      scaleDots();
+    };
 
     recolor3D = function () {
       const cA = new THREE.Color(cssVar("--domain-a"));
@@ -722,14 +853,15 @@
     };
 
     update3D = function (r) {
-      if (builtPsi !== state.psi) buildSlabs(state.psi);
+      if (builtKey !== `${state.psi},${state.thetaC},${state.phiC},${LX},${LZ}`) buildSlabs(state.psi, state.thetaC, state.phiC);
       const s = r.s;
       const s3 = T(s.x, s.y, s.z).normalize();
       const q = new THREE.Quaternion().setFromUnitVectors(UP, s3);
 
       // where the beam is inside the block (slab method, block centred on the origin)
       let tmin = -Infinity, tmax = Infinity;
-      [[s.x, hx], [s.y, hy], [s.z, hz]].forEach(([d, h]) => {
+      const sv = [s.x, s.y, s.z];
+      [[dot3(sv, axes.L), hx], [dot3(sv, axes.W), hy], [dot3(sv, axes.Tk), hz]].forEach(([d, h]) => {
         if (Math.abs(d) > 1e-9) {
           const t1 = -h / d, t2 = h / d;
           tmin = Math.max(tmin, Math.min(t1, t2));
@@ -847,6 +979,10 @@
     $("phiNum").value = state.phi;
     $("psi").value = state.psi;
     $("psiNum").value = state.psi;
+    $("thetaC").value = state.thetaC;
+    $("thetaCNum").value = state.thetaC;
+    $("phiC").value = state.phiC;
+    $("phiCNum").value = state.phiC;
     $("period").value = state.period;
     $("lamOut").value = state.lamOut;
     $("nOut").value = state.nOut;
@@ -870,6 +1006,27 @@
   bindPair("theta", "thetaNum", "theta", 0, 180);
   bindPair("phi", "phiNum", "phi", 0, 360);
   bindPair("psi", "psiNum", "psi", 0, 180);
+  bindPair("thetaC", "thetaCNum", "thetaC", 0, 180);
+  bindPair("phiC", "phiCNum", "phiC", 0, 360);
+  [["size30", 30, 1], ["size12", 12, 4]].forEach(([id, lx, ap]) => {
+    $(id).addEventListener("click", () => {
+      state.size = lx;
+      setCrystalSize(lx, ap);
+      refresh();
+    });
+  });
+  $("cutStd").addEventListener("click", () => {
+    state.thetaC = 90;
+    state.phiC = 0;
+    syncInputs();
+    refresh();
+  });
+  $("cutBeam").addEventListener("click", () => {
+    state.thetaC = state.theta;
+    state.phiC = state.phi;
+    syncInputs();
+    refresh();
+  });
 
   function bindNum(id, key, lo) {
     $(id).addEventListener("input", (e) => {
@@ -899,7 +1056,7 @@
     });
   });
 
-  document.querySelectorAll(".presets button").forEach((b) => {
+  document.querySelectorAll(".presets button[data-t]").forEach((b) => {
     b.addEventListener("click", () => {
       state.theta = +b.dataset.t;
       state.phi = +b.dataset.p;
