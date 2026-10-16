@@ -1,0 +1,958 @@
+<title>PPLN CNOT Designer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: instrument-panel sidebar of controls on the left, stacked readouts on the right; collapses to one column on phones. */
+:root {
+  --bg: #f3f5f7; --panel: #ffffff; --ink: #16212d; --muted: #5b6979; --rule: #d6dce3; --soft: #e9edf2;
+  --accent: #0e6b88; --accent-ink: #ffffff;
+  --h: #2b5fc7; --v: #b86b12; --ok: #237a4b; --xt: #c03a28; --wrong: #8f1d3f; --pump: #6f45ad; --left: #8a96a4;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1319; --panel: #151c24; --ink: #e3e9ef; --muted: #93a1b1; --rule: #2a3542; --soft: #1c2530;
+  --accent: #4fb2d0; --accent-ink: #06222c;
+  --h: #7aa2f2; --v: #e6a24f; --ok: #55c088; --xt: #ef6a56; --wrong: #e0577f; --pump: #b38ce8; --left: #6f7c8b; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e1319; --panel: #151c24; --ink: #e3e9ef; --muted: #93a1b1; --rule: #2a3542; --soft: #1c2530;
+  --accent: #4fb2d0; --accent-ink: #06222c;
+  --h: #7aa2f2; --v: #e6a24f; --ok: #55c088; --xt: #ef6a56; --wrong: #e0577f; --pump: #b38ce8; --left: #6f7c8b; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--font-body); }
+.wrap { max-width: 1320px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; }
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin-bottom: 16px; }
+h1 { font: 600 26px/1.15 var(--font-display); letter-spacing: 0.01em; margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); margin: 0; }
+.banner { margin: 8px 0 0; padding: 6px 10px; border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: 6px; font-size: 12.5px; color: var(--ink); background: color-mix(in srgb, var(--accent) 6%, transparent); max-width: 110ch; }
+.grid { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } aside.controls { position: static; max-height: none; } }
+aside.controls { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: calc(100vh - 24px); overflow: auto;
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+legend { font: 600 11px/1 var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 0; margin-bottom: 8px; }
+.ctl { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; }
+.ctl label { font-weight: 500; }
+.ctl .val { font: 500 13px var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.ctl .hint { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+.ctl input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.num { display: flex; flex-direction: column; gap: 2px; }
+.num span { font-size: 12px; color: var(--muted); }
+input[type=number], select { width: 100%; font: 500 13px var(--font-mono); padding: 6px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--bg); color: var(--ink); }
+button { font: 500 13px var(--font-body); padding: 7px 10px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+button.ghost { background: transparent; color: var(--accent); }
+button:disabled { opacity: 0.55; cursor: progress; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.sep { height: 1px; background: var(--rule); }
+main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+section.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+section.card h2 { font: 600 17px/1.2 var(--font-display); margin: 0 0 4px; }
+section.card .note { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; max-width: 80ch; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 700px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tile { border: 1px solid var(--rule); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; background: var(--bg); min-width: 0; }
+.tile .k { font-size: 11.5px; color: var(--muted); letter-spacing: 0.02em; }
+.tile .n { font: 500 22px/1.15 var(--font-mono); font-variant-numeric: tabular-nums; }
+.tile .d { font-size: 12px; color: var(--muted); }
+.eqs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 26px; margin: 2px 0 12px; color: var(--ink); font-size: 14px; }
+.eqs > span { white-space: nowrap; }
+.plot-eq { font-size: 12.5px; gap: 2px 14px; margin: 0 0 4px; }
+.halo { paint-order: stroke; stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; }
+.eqs .lab, .eqs-lab { color: var(--muted); font-size: 12px; margin-right: 6px; }
+.tile .eqs { font-size: 12.5px; margin: 6px 0 0; padding-top: 6px; border-top: 1px dashed var(--rule); gap: 4px 14px; overflow-x: auto; }
+.controls .eqs { font-size: 13px; gap: 4px 14px; margin: 4px 0 0; }
+math { font-family: "Latin Modern Math", "STIX Two Math", "Cambria Math", serif; }
+.tile.h { border-left: 3px solid var(--h); } .tile.v { border-left: 3px solid var(--v); }
+.flags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.pill { display: inline-block; font: 500 11.5px/1.6 var(--font-body); padding: 0 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.pill.good { color: var(--ok); } .pill.warn { color: var(--v); } .pill.bad { color: var(--xt); }
+.svgbox { width: 100%; overflow-x: auto; }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font-body); fill: var(--ink); }
+svg .mono { font-family: var(--font-mono); }
+svg .axis { stroke: var(--rule); } svg .grid { stroke: var(--soft); }
+svg .tick { fill: var(--muted); font-size: 10.5px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+.tablebox { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th, td { padding: 5px 8px; border-bottom: 1px solid var(--rule); text-align: left; white-space: nowrap; }
+.symtab td { white-space: normal; vertical-align: top; } .symtab td:first-child { white-space: nowrap; }
+th { font-weight: 600; color: var(--muted); font-size: 11.5px; letter-spacing: 0.03em; }
+td.m { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+tr.wanted td { background: color-mix(in srgb, var(--ok) 8%, transparent); }
+.cat { font: 500 11px var(--font-body); padding: 0 7px; border-radius: 999px; border: 1px solid currentColor; }
+.cat.wanted { color: var(--ok); } .cat.inband { color: var(--wrong); } .cat.crosstalk { color: var(--xt); } .cat.loss { color: var(--muted); } .cat.offdesign { color: var(--left); } .cat.pump { color: var(--pump); }
+.fate { display: flex; flex-direction: column; gap: 8px; }
+.fate .r { display: grid; grid-template-columns: 112px minmax(0, 1fr) 64px; gap: 10px; align-items: center; }
+.fate .lab { font-size: 12.5px; }
+.bar { display: flex; height: 18px; border-radius: 4px; overflow: hidden; background: var(--soft); }
+.bar span { height: 100%; }
+.fate .pc { font: 500 13px var(--font-mono); text-align: right; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+@media (max-width: 760px) { .two { grid-template-columns: minmax(0, 1fr); } }
+details { font-size: 13px; }
+details summary { cursor: pointer; font-weight: 500; }
+.small { font-size: 12px; color: var(--muted); }
+.status { font-size: 12px; color: var(--muted); min-height: 1.4em; }
+code { font-family: var(--font-mono); font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>PPLN CNOT Designer</h1>
+    <p class="sub">Quasi-phase-matching in z-cut, x-propagating 5% MgO:LN (Gayer Sellmeier): one crystal with two periods, or two crystals at 90°. Polarization-controlled frequency CNOT by SFG.</p>
+  </header>
+  <div class="grid">
+    <aside class="controls" aria-label="Design parameters">
+      <fieldset>
+        <legend>Wavelengths</legend>
+        <div class="row2">
+          <label class="num"><span>H pump ωp2 (nm)</span><input id="lp2" type="number" step="0.1" value="1595"></label>
+          <label class="num"><span>Photon λ (nm)</span><input id="lc" type="number" step="0.1" value="1556"></label>
+        </div>
+        <label class="num"><span>Photon λ is</span>
+          <select id="anchor"><option value="centre">the centre of signal and idler</option><option value="signal">the signal (idler = signal − Δ)</option></select></label>
+        <div class="ctl">
+          <label for="D">Line spacing Δ</label><span class="val" id="Dv"></span>
+          <input id="D" type="range" min="0.025" max="1.2" step="0.025" value="0.1">
+          <span class="hint" id="Dh"></span>
+        </div>
+      </fieldset>
+      <div class="sep"></div>
+      <fieldset>
+        <legend>Crystal</legend>
+        <label class="num"><span>Configuration</span>
+          <select id="mode"><option value="one">One crystal, cascaded: H section then V section (H: d33, V: d22)</option><option value="two">Two crystals, V crystal rotated 90° (both d33)</option></select></label>
+        <div class="ctl"><label for="T">Temperature</label><span class="val" id="Tv"></span><input id="T" type="range" min="20" max="200" step="0.5" value="150"></div>
+        <div class="ctl"><label for="L" id="Llab">Length</label><span class="val" id="Lv"></span><input id="L" type="range" min="1" max="50" step="0.25" value="13"></div>
+        <div class="ctl" id="LVwrap" hidden><label for="LVlen">Length of V crystal</label><span class="val" id="LVlenv"></span><input id="LVlen" type="range" min="1" max="50" step="0.25" value="13"></div>
+        <div class="row2">
+          <label class="num"><span id="perLabH">Λ<sub>H</sub> (µm)</span><input id="LH" type="number" step="0.000001"></label>
+          <label class="num"><span id="perLabV">Λ<sub>V</sub> (µm)</span><input id="LV" type="number" step="0.000001"></label>
+        </div>
+        <div class="small" id="perHint"></div>
+        <div class="eqs"><span><span class="lab">ideal</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi mathvariant="normal">Λ</mi><mtext>ideal</mtext></msub><mo>=</mo><mfrac><mrow><mn>2</mn><mi>π</mi></mrow><msub><mi>K</mi><mtext>ideal</mtext></msub></mfrac><mo separator="true">,</mo><mtext>  </mtext><msub><mi>K</mi><mtext>ideal</mtext></msub><mo>=</mo><mfrac><mrow><mi mathvariant="normal">Δ</mi><msub><mi>k</mi><mn>1</mn></msub><mo>+</mo><mi mathvariant="normal">Δ</mi><msub><mi>k</mi><mn>2</mn></msub></mrow><mn>2</mn></mfrac></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \Lambda_{\text{ideal}} = \dfrac{2\pi}{K_{\text{ideal}}},\ \ K_{\text{ideal}} = \dfrac{\Delta k_1+\Delta k_2}{2}</annotation></semantics></math></span></span><span><span class="lab">offset</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><mfrac><mrow><mi>K</mi><mo>−</mo><msub><mi>K</mi><mtext>ideal</mtext></msub></mrow><mrow><mn>2</mn><mi>π</mi><mi mathvariant="normal">/</mi><mi>L</mi></mrow></mfrac><mo separator="true">,</mo><mtext>  </mtext><mi>K</mi><mo>=</mo><mfrac><mrow><mn>2</mn><mi>π</mi></mrow><mi mathvariant="normal">Λ</mi></mfrac><mtext> (entered)</mtext></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \dfrac{K - K_{\text{ideal}}}{2\pi/L},\ \ K = \dfrac{2\pi}{\Lambda}\ \text{(entered)}</annotation></semantics></math></span></span></div>
+        <div class="btns"><button id="auto" class="ghost" type="button">Set ideal periods</button></div>
+<div id="gridOpts" style="display:flex;flex-direction:column;gap:10px">
+        <label class="num" hidden><span>Grating</span>
+          <select id="gtype"><option value="cascaded">Cascaded (H section, then V section)</option></select></label>
+        <div class="ctl"><label for="wV" id="wVlab">V share of the grating</label><span class="val" id="wVv"></span><input id="wV" type="range" min="0.2" max="0.8" step="0.01" value="0.5"></div>
+        <label class="num" hidden><span>Minimum domain width (µm)</span><input id="minD" type="number" step="0.5" min="0" value="2"></label>
+        </div>
+      </fieldset>
+      <details>
+        <summary>Nonlinear coefficients (pm/V)</summary>
+        <div class="row2" style="margin-top:8px">
+          <label class="num"><span>d33</span><input id="d33" type="number" step="0.1" value="25"></label>
+          <label class="num"><span>d22</span><input id="d22" type="number" step="0.1" value="2.1"></label>
+          <label class="num" hidden><span>d31</span><input id="d31" type="number" step="0.1" value="4.4"></label>
+          <label class="num" hidden><span>d15</span><input id="d15" type="number" step="0.1" value="4.4"></label>
+        </div>
+        <p class="small">Literature values near 1 µm (Shoji et al., JOSA B 14, 2268 (1997); Boyd, <i>Nonlinear Optics</i>); dispersion of d is ignored. Used only for relative coupling and pump-power ratios.</p>
+      </details>
+    </aside>
+
+    <main>
+      <section class="card" aria-labelledby="s-geo">
+        <h2 id="s-geo">Crystal geometry</h2>
+        <div class="svgbox" id="geom"></div>
+        <div class="small" id="geomInfo" style="margin-top:4px"></div>
+      </section>
+      <section class="card" aria-labelledby="s-lay">
+        <h2 id="s-lay">Frequency layout</h2>
+        <div class="eqs"><span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi>ω</mi><mrow><mi>s</mi><mo separator="true">,</mo><mi>i</mi></mrow></msub><mo>=</mo><msub><mi>ω</mi><mi>c</mi></msub><mo>±</mo><mstyle displaystyle="false" scriptlevel="0"><mfrac><mi mathvariant="normal">Δ</mi><mn>2</mn></mfrac></mstyle><mtext>  </mtext><mo stretchy="false">(</mo><mtext>or </mtext><msub><mi>ω</mi><mi>i</mi></msub><mo>=</mo><msub><mi>ω</mi><mi>s</mi></msub><mo>−</mo><mi mathvariant="normal">Δ</mi><mo stretchy="false">)</mo></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \omega_{s,i} = \omega_c \pm \tfrac{\Delta}{2}\ \ (\text{or } \omega_i = \omega_s - \Delta)</annotation></semantics></math></span></span><span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi>ω</mi><mrow><mi>p</mi><mn>1</mn><mo separator="true">,</mo><mi>p</mi><mn>3</mn></mrow></msub><mo>=</mo><msub><mi>ω</mi><mrow><mi>p</mi><mn>2</mn></mrow></msub><mo>±</mo><mi mathvariant="normal">Δ</mi></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \omega_{p1,p3} = \omega_{p2} \pm \Delta</annotation></semantics></math></span></span><span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi>ω</mi><mn>1</mn></msub><mo>=</mo><msub><mi>ω</mi><mrow><mi>p</mi><mn>2</mn></mrow></msub><mo>+</mo><msub><mi>ω</mi><mi>s</mi></msub><mo>=</mo><msub><mi>ω</mi><mrow><mi>p</mi><mn>1</mn></mrow></msub><mo>+</mo><msub><mi>ω</mi><mi>i</mi></msub></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \omega_1 = \omega_{p2}+\omega_s = \omega_{p1}+\omega_i</annotation></semantics></math></span></span><span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi>ω</mi><mn>2</mn></msub><mo>=</mo><msub><mi>ω</mi><mrow><mi>p</mi><mn>2</mn></mrow></msub><mo>+</mo><msub><mi>ω</mi><mi>i</mi></msub><mo>=</mo><msub><mi>ω</mi><mrow><mi>p</mi><mn>3</mn></mrow></msub><mo>+</mo><msub><mi>ω</mi><mi>s</mi></msub></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \omega_2 = \omega_{p2}+\omega_i = \omega_{p3}+\omega_s</annotation></semantics></math></span></span><span><span class="lab">crosstalk</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi>ω</mi><mrow><mi>p</mi><mn>1</mn></mrow></msub><mo>+</mo><msub><mi>ω</mi><mi>s</mi></msub><mo>=</mo><msub><mi>ω</mi><mn>1</mn></msub><mo>+</mo><mi mathvariant="normal">Δ</mi><mo separator="true">,</mo><mtext>  </mtext><msub><mi>ω</mi><mrow><mi>p</mi><mn>3</mn></mrow></msub><mo>+</mo><msub><mi>ω</mi><mi>i</mi></msub><mo>=</mo><msub><mi>ω</mi><mn>2</mn></msub><mo>−</mo><mi mathvariant="normal">Δ</mi></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \omega_{p1}+\omega_s = \omega_1+\Delta,\ \ \omega_{p3}+\omega_i = \omega_2-\Delta</annotation></semantics></math></span></span><span><span class="lab">harmonics</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi>ω</mi><mrow><mi>p</mi><mi>a</mi></mrow></msub><mo>+</mo><msub><mi>ω</mi><mrow><mi>p</mi><mi>b</mi></mrow></msub></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \omega_{pa}+\omega_{pb}</annotation></semantics></math></span></span><span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><mi>λ</mi><mo>=</mo><mfrac><mrow><mn>2</mn><mi>π</mi><mi>c</mi></mrow><mi>ω</mi></mfrac></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \lambda = \dfrac{2\pi c}{\omega}</annotation></semantics></math></span></span></div>
+        <div class="svgbox" id="layout"></div>
+        <div class="legend"><span><i style="background:var(--h)"></i>H pump / H process</span><span><i style="background:var(--v)"></i>V pumps</span><span><i style="background:var(--ink)"></i>photons</span><span><i style="background:var(--ok)"></i>wanted outputs ω₁, ω₂</span><span><i style="background:var(--xt)"></i>V crosstalk</span><span><i style="background:var(--pump)"></i>pump harmonics</span></div>
+      </section>
+
+      <section class="card" aria-labelledby="s-pm">
+        <h2 id="s-pm">Phase-matching curves</h2>
+        <p class="note"><b>Plotted:</b> the phase-matching factor y of each grating.</p>
+        <div class="eqs"><span><span class="lab">all cases</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><mi>y</mi><mo stretchy="false">(</mo><mi>ν</mi><mo stretchy="false">)</mo><mo>=</mo><msup><mrow><mo fence="true">[</mo><mfrac><mrow><mi mathvariant="normal">∣</mi><mi mathvariant="normal">Φ</mi><mo stretchy="false">(</mo><mi mathvariant="normal">Δ</mi><mi>k</mi><mo stretchy="false">(</mo><mi>ν</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo><mi mathvariant="normal">∣</mi></mrow><mrow><mn>2</mn><mi mathvariant="normal">/</mi><mi>π</mi></mrow></mfrac><mo fence="true">]</mo></mrow><mn>2</mn></msup><mo separator="true">,</mo><mspace width="1em"/><mi mathvariant="normal">Φ</mi><mo stretchy="false">(</mo><mi mathvariant="normal">Δ</mi><mi>k</mi><mo stretchy="false">)</mo><mo>=</mo><mfrac><mn>1</mn><mi>L</mi></mfrac><mstyle scriptlevel="0" displaystyle="true"><msubsup><mo>∫</mo><mn>0</mn><mi>L</mi></msubsup><mi>g</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mtext> </mtext><msup><mi>e</mi><mrow><mo>−</mo><mi>i</mi><mi mathvariant="normal">Δ</mi><mi>k</mi><mtext> </mtext><mi>x</mi></mrow></msup><mtext> </mtext><mi>d</mi><mi>x</mi><mo separator="true">,</mo><mspace width="1em"/><mi mathvariant="normal">Δ</mi><mi>k</mi><mo stretchy="false">(</mo><mi>ν</mi><mo stretchy="false">)</mo><mo>=</mo><mi>k</mi><mo stretchy="false">(</mo><msub><mi>ν</mi><mtext>pump</mtext></msub><mo>+</mo><mi>ν</mi><mo stretchy="false">)</mo><mo>−</mo><mi>k</mi><mo stretchy="false">(</mo><msub><mi>ν</mi><mtext>pump</mtext></msub><mo stretchy="false">)</mo><mo>−</mo><mi>k</mi><mo stretchy="false">(</mo><mi>ν</mi><mo stretchy="false">)</mo></mstyle></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle y(\nu) = \left[\dfrac{|\Phi(\Delta k(\nu))|}{2/\pi}\right]^2,\quad \Phi(\Delta k) = \dfrac{1}{L}\displaystyle\int_0^L g(x)\, e^{-i\Delta k\, x}\, dx,\quad \Delta k(\nu) = k(\nu_{\text{pump}}+\nu) - k(\nu_{\text{pump}}) - k(\nu)</annotation></semantics></math></span></span></div>
+        <p class="small" style="margin:0 0 6px">g(x) = ±1 is the sign of the nonlinear coefficient at position x (unflipped or flipped domain). Poling only sets g(x), so each grating design is a different g(x):</p>
+        <div class="eqs"><span><span class="lab">two crystals (one period each)</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><mi>g</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mi mathvariant="normal">sign</mi><mo>⁡</mo><mo fence="false" stretchy="true" minsize="1.2em" maxsize="1.2em">[</mo><mi>cos</mi><mo>⁡</mo><mo stretchy="false">(</mo><mi>K</mi><mi>x</mi><mo stretchy="false">)</mo><mo fence="false" stretchy="true" minsize="1.2em" maxsize="1.2em">]</mo><mtext> </mtext><mo>⇒</mo><mtext> </mtext><mi>y</mi><mo>=</mo><msup><mrow><mo fence="true">[</mo><mfrac><mrow><mi>sin</mi><mo>⁡</mo><mi>d</mi></mrow><mi>d</mi></mfrac><mo fence="true">]</mo></mrow><mn>2</mn></msup><mo separator="true">,</mo><mtext>  </mtext><mi>d</mi><mo>=</mo><mfrac><mrow><mo stretchy="false">(</mo><mi mathvariant="normal">Δ</mi><mi>k</mi><mo>−</mo><mi>K</mi><mo stretchy="false">)</mo><mtext> </mtext><mi>L</mi></mrow><mn>2</mn></mfrac><mo separator="true">,</mo><mtext>  </mtext><mi>K</mi><mo>=</mo><mfrac><mrow><mn>2</mn><mi>π</mi></mrow><mi mathvariant="normal">Λ</mi></mfrac></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle g(x) = \operatorname{sign}\big[\cos(Kx)\big]\ \Rightarrow\ y = \left[\dfrac{\sin d}{d}\right]^2,\ \ d = \dfrac{(\Delta k - K)\,L}{2},\ \ K = \dfrac{2\pi}{\Lambda}</annotation></semantics></math></span></span></div>
+        <div class="eqs"><span><span class="lab">one crystal (H section, then V section)</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><mi>g</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mrow><mo fence="true">{</mo><mtable rowspacing="0.36em" columnalign="left left" columnspacing="1em"><mtr><mtd><mstyle scriptlevel="0" displaystyle="false"><mrow><mi mathvariant="normal">sign</mi><mo>⁡</mo><mo stretchy="false">[</mo><mi>cos</mi><mo>⁡</mo><mo stretchy="false">(</mo><msub><mi>K</mi><mi>H</mi></msub><mi>x</mi><mo stretchy="false">)</mo><mo stretchy="false">]</mo><mo separator="true">,</mo></mrow></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mrow><mi>x</mi><mo>&lt;</mo><msub><mi>w</mi><mi>H</mi></msub><mi>L</mi></mrow></mstyle></mtd></mtr><mtr><mtd><mstyle scriptlevel="0" displaystyle="false"><mrow><mi mathvariant="normal">sign</mi><mo>⁡</mo><mo stretchy="false">[</mo><mi>cos</mi><mo>⁡</mo><mo stretchy="false">(</mo><msub><mi>K</mi><mi>V</mi></msub><mi>x</mi><mo stretchy="false">)</mo><mo stretchy="false">]</mo><mo separator="true">,</mo></mrow></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="false"><mrow><mi>x</mi><mo>&gt;</mo><msub><mi>w</mi><mi>H</mi></msub><mi>L</mi></mrow></mstyle></mtd></mtr></mtable></mrow></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle g(x) = \begin{cases}\operatorname{sign}[\cos(K_H x)], &amp; x &lt; w_H L\\ \operatorname{sign}[\cos(K_V x)], &amp; x &gt; w_H L\end{cases}</annotation></semantics></math></span></span><span><span class="lab"></span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi>w</mi><mi>V</mi></msub><mo>=</mo><mtext>V share</mtext><mo separator="true">,</mo><mtext>  </mtext><msub><mi>w</mi><mi>H</mi></msub><mo>=</mo><mn>1</mn><mo>−</mo><msub><mi>w</mi><mi>V</mi></msub></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle w_V = \text{V share},\ \ w_H = 1 - w_V</annotation></semantics></math></span></span></div>
+        <div class="btns" role="radiogroup" aria-label="Vertical axis"><span class="small">Vertical axis:</span><label class="small"><input type="radio" name="pmScale" value="y" checked> phase-matching factor y (each panel scaled to its data)</label><label class="small"><input type="radio" name="pmScale" value="eta"> relative conversion η, % of a perfectly phase-matched 50 mm d<sub>33</sub> crystal (includes d and L; common axis)</label></div>
+        <div id="pmEtaNote" hidden><div class="eqs" style="margin:4px 0 6px"><span><span class="lab">plotted (η view)</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><mi>η</mi><mo stretchy="false">(</mo><mi>ν</mi><mo stretchy="false">)</mo><mo>=</mo><mfrac><mrow><mo stretchy="false">(</mo><mi>d</mi><mi mathvariant="normal">/</mi><msub><mi>d</mi><mn>33</mn></msub><msup><mo stretchy="false">)</mo><mn>2</mn></msup><mtext> </mtext><msup><mi>L</mi><mn>2</mn></msup><mtext> </mtext><mi>y</mi><mo stretchy="false">(</mo><mi>ν</mi><mo stretchy="false">)</mo></mrow><mrow><mo stretchy="false">(</mo><mn>50</mn><mtext> mm</mtext><msup><mo stretchy="false">)</mo><mn>2</mn></msup></mrow></mfrac><mo>×</mo><mn>100</mn><mi mathvariant="normal">%</mi></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \eta(\nu) = \dfrac{(d/d_{33})^2\,L^2\,y(\nu)}{(50\ \text{mm})^2}\times 100\%</annotation></semantics></math></span></span><span><span class="lab">H</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><mi>d</mi><mo>=</mo><msub><mi>d</mi><mn>33</mn></msub></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle d = d_{33}</annotation></semantics></math></span></span><span><span class="lab">V</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><mi>d</mi><mo>=</mo><msub><mi>d</mi><mn>33</mn></msub><mtext> (two crystals)</mtext><mo separator="true">,</mo><mtext> </mtext><msub><mi>d</mi><mn>22</mn></msub><mtext> (one crystal)</mtext></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle d = d_{33}\ \text{(two crystals)},\ d_{22}\ \text{(one crystal)}</annotation></semantics></math></span></span></div><p class="small" style="margin:0 0 8px">Dots are the Gate summary values. The curve peak is a perfectly phase-matched photon at this length; the real photons sit at ±δ from it.</p></div>
+        <div class="two"><div class="svgbox" id="pmH"></div><div class="svgbox" id="pmV"></div></div>
+        <div class="legend"><span><i style="background:var(--h)"></i>H photon + ωp2</span><span><i style="background:var(--v)"></i>V photon + ωp1 (solid)</span><span><i style="background:none;height:0;border-top:2px dashed var(--v)"></i>V photon + ωp3 (dashed)</span><span><i style="background:var(--ok)"></i>wanted</span><span><i style="background:var(--xt)"></i>crosstalk</span></div>
+      </section>
+
+      <section class="card" aria-labelledby="s-scan">
+        <h2 id="s-scan">Choosing length and temperature</h2>
+        <p class="note">Conversion of the <b>weakest of the four photons</b>.</p>
+        <div class="eqs"><span><span class="lab">common</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi>y</mi><mi>t</mi></msub><mo>=</mo><msup><mrow><mo fence="true">[</mo><mfrac><mrow><mi mathvariant="normal">∣</mi><mi mathvariant="normal">Φ</mi><mo stretchy="false">(</mo><mi mathvariant="normal">Δ</mi><msub><mi>k</mi><mi>t</mi></msub><mo stretchy="false">)</mo><mi mathvariant="normal">∣</mi></mrow><mrow><mn>2</mn><mi mathvariant="normal">/</mi><mi>π</mi></mrow></mfrac><mo fence="true">]</mo></mrow><mn>2</mn></msup><mo separator="true">,</mo><mspace width="1em"/><mi mathvariant="normal">Φ</mi><mo stretchy="false">(</mo><mi mathvariant="normal">Δ</mi><mi>k</mi><mo stretchy="false">)</mo><mo>=</mo><mfrac><mn>1</mn><mi>L</mi></mfrac><msubsup><mo>∫</mo><mn>0</mn><mi>L</mi></msubsup><mi>g</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mtext> </mtext><msup><mi>e</mi><mrow><mo>−</mo><mi>i</mi><mi mathvariant="normal">Δ</mi><mi>k</mi><mtext> </mtext><mi>x</mi></mrow></msup><mtext> </mtext><mi>d</mi><mi>x</mi><mo separator="true">,</mo><mspace width="1em"/><msub><mi>η</mi><mi>min</mi><mo>⁡</mo></msub><mo>=</mo><munder><mrow><mi>min</mi><mo>⁡</mo></mrow><mi>t</mi></munder><mtext> </mtext><mfrac><mrow><mo stretchy="false">(</mo><msub><mi>d</mi><mi>t</mi></msub><mi mathvariant="normal">/</mi><msub><mi>d</mi><mn>33</mn></msub><msup><mo stretchy="false">)</mo><mn>2</mn></msup><mtext> </mtext><msup><mi>L</mi><mn>2</mn></msup><mtext> </mtext><msub><mi>y</mi><mi>t</mi></msub></mrow><mrow><mo stretchy="false">(</mo><mn>50</mn><mtext> mm</mtext><msup><mo stretchy="false">)</mo><mn>2</mn></msup></mrow></mfrac></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle y_t = \left[\dfrac{|\Phi(\Delta k_t)|}{2/\pi}\right]^2,\quad \Phi(\Delta k) = \dfrac{1}{L}\int_0^L g(x)\,e^{-i\Delta k\,x}\,dx,\quad \eta_{\min} = \min_{t}\ \dfrac{(d_t/d_{33})^2\,L^2\,y_t}{(50\ \text{mm})^2}</annotation></semantics></math></span></span></div>
+        <div class="btns"><button id="useL" class="ghost" type="button">Use best length (fixed pump power)</button><span class="status" id="scanStatus"></span></div>
+        <p class="small" id="scanBest" style="margin:8px 0 0;max-width:90ch"></p>
+        <div class="two" style="margin-top:8px">
+          <div><div class="eqs plot-eq"><span><span class="lab">vs length L (Δ, T, K fixed)</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi>η</mi><mi>min</mi><mo>⁡</mo></msub><mo stretchy="false">(</mo><mi>L</mi><mo stretchy="false">)</mo></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \eta_{\min}(L)</annotation></semantics></math></span></span></div><div class="svgbox" id="scanL"></div></div>
+          <div><div class="eqs plot-eq"><span><span class="lab">vs design temperature T<sub>d</sub> (L fixed, ideal periods at each T<sub>d</sub>)</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi>η</mi><mi>min</mi><mo>⁡</mo></msub><mo stretchy="false">(</mo><msub><mi>T</mi><mi>d</mi></msub><mo stretchy="false">)</mo></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \eta_{\min}(T_d)</annotation></semantics></math></span></span></div><div class="svgbox" id="scanTe"></div></div>
+        </div>
+        <div class="legend"><span><i style="background:var(--ok)"></i>η<sub>min</sub>: weakest photon, % of a matched 50 mm crystal</span></div>
+      </section>
+
+      <section class="card" aria-labelledby="s-sum">
+        <h2 id="s-sum">Gate summary</h2>
+        <p class="note">100% = a perfectly phase-matched (y = 1) d<sub>33</sub> crystal of 50 mm, with the same pump; the crosstalk uses the same scale.</p>
+        <div class="eqs"><span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><mi>η</mi><mo>∝</mo><msubsup><mi>d</mi><mtext>eff</mtext><mn>2</mn></msubsup><mtext> </mtext><msup><mi>L</mi><mn>2</mn></msup><mtext> </mtext><mi>y</mi><mo separator="true">,</mo><mspace width="2em"/><mi>y</mi><mo>=</mo><msup><mrow><mo fence="true">[</mo><mfrac><mrow><mi mathvariant="normal">∣</mi><mi mathvariant="normal">Φ</mi><mo stretchy="false">(</mo><mi mathvariant="normal">Δ</mi><mi>k</mi><mo stretchy="false">)</mo><mi mathvariant="normal">∣</mi></mrow><mrow><mn>2</mn><mi mathvariant="normal">/</mi><mi>π</mi></mrow></mfrac><mo fence="true">]</mo></mrow><mn>2</mn></msup></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \eta \propto d_{\text{eff}}^2\,L^2\,y,\qquad y = \left[\dfrac{|\Phi(\Delta k)|}{2/\pi}\right]^2</annotation></semantics></math></span></span></div>
+        <div class="tiles" id="tiles"></div>
+      </section>
+
+      <section class="card" aria-labelledby="s-ass">
+        <h2 id="s-ass">Model and assumptions</h2>
+        <ul class="small" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px">
+          <li>Refractive indices: 5 mol% MgO:LN, Gayer et al., Appl. Phys. B 91, 343 (2008); H = z (extraordinary), V = y (ordinary), propagation along x. Wavevector <span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><mi>k</mi><mo stretchy="false">(</mo><mi>ν</mi><mo stretchy="false">)</mo><mo>=</mo><mfrac><mrow><mn>2</mn><mi>π</mi><mtext> </mtext><mi>n</mi><mo stretchy="false">(</mo><mi>λ</mi><mo separator="true">,</mo><mi>T</mi><mo stretchy="false">)</mo></mrow><mi>λ</mi></mfrac><mo separator="true">,</mo><mtext> </mtext><mi>λ</mi><mo>=</mo><mfrac><mi>c</mi><mi>ν</mi></mfrac></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle k(\nu) = \dfrac{2\pi\, n(\lambda,T)}{\lambda},\ \lambda = \dfrac{c}{\nu}</annotation></semantics></math></span>.</li>
+          <li>Poling periods are the values at the operating temperature, Λ = 2π/K. Conversion to the fabricated (room-temperature) period is left to the vendor.</li>
+          <li>One crystal: cascaded grating, the first w<sub>H</sub>L poled with Λ<sub>H</sub> and the rest with Λ<sub>V</sub> (w<sub>V</sub> = V share).</li>
+          <li>Weak conversion: pumps undepleted and each photon only slightly converted, so η ∝ d<sub>eff</sub>²·L²·y with y the phase-matching factor of the actual domain pattern (first-order limit of η = sin²(κL), P. Kumar, Opt. Lett. 15, 1476 (1990); first-order QPM coupling (2/π)d<sub>eff</sub>, M. M. Fejer et al., IEEE J. Quantum Electron. 28, 2631 (1992)). Same pump power for every design, equal V-pump strengths, plane waves, no loss.</li>
+          <li>100% = a perfectly phase-matched (y = 1) d<sub>33</sub> crystal of 50 mm with the same pump, so η = (d/d<sub>33</sub>)²·(L/50 mm)²·y. The reference does not depend on spacing, length, temperature or configuration, so all designs share one scale.</li>
+          <li>Each V photon couples to its target output (through the right V pump) and to its crosstalk output (through the other V pump).</li>
+          <li>Mixed-polarization (type-I and type-II) processes through d31 and d15 are excluded for now; they lie far from every grating feature.</li>
+          <li>Two-crystal configuration: the H crystal (H along z) is followed by the V crystal rotated 90° (V along z). Each has a single period; all pumps pass through both. Processes of the other polarization in each crystal (through d22) are excluded; they are far from phase-matching.</li>
+          <li>Not modelled yet: absolute pump power, strong conversion and back-conversion, Raman noise from the pumps, pump polarization extinction, crystal rotation misalignment.</li>
+        </ul>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script>
+// ---------- physics core (shared by page and node tests) ----------
+const C = 299792.458; // nm*THz
+// 5 mol% MgO:LN, Gayer et al., Appl. Phys. B 91, 343 (2008); lambda in um, T in C
+const GAYER = {
+  e: [5.756, 0.0983, 0.2020, 189.32, 12.52, 1.32e-2, 2.860e-6, 4.700e-8, 6.113e-8, 1.516e-4],
+  o: [5.653, 0.1185, 0.2091, 89.61, 10.85, 1.97e-2, 7.941e-7, 3.134e-8, -4.641e-9, -2.188e-6]
+};
+function nLN(ax, lum, T) {
+  const [a1, a2, a3, a4, a5, a6, b1, b2, b3, b4] = GAYER[ax];
+  const f = (T - 24.5) * (T + 570.82), l2 = lum * lum, a3f = a3 + b3 * f;
+  return Math.sqrt(a1 + b1 * f + (a2 + b2 * f) / (l2 - a3f * a3f) + (a4 + b4 * f) / (l2 - a5 * a5) - a6 * l2);
+}
+// field polarization in the x-propagating crystal: z -> extraordinary (H), y -> ordinary (V)
+const AX = { z: 'e', y: 'o' };
+function kOf(pol, nuTHz, T) { const l = C / nuTHz / 1000; return 2 * Math.PI * nLN(AX[pol], l, T) / l; } // rad/um
+// thermal expansion of LN along x (Jundt 1997, congruent; used for MgO:LN)
+function expansion(T) { const d = T - 25; return 1 + 1.54e-5 * d + 5.3e-9 * d * d; }
+
+// allowed couplings for fields along y,z (x-propagation, point group 3m)
+const MIXED = false; // type-I/II couplings (d31, d15) excluded for now; set true to include them
+const ALLOWED = { 'z|z,z': 'd33', 'y|y,y': 'd22', 'z|y,y': 'd31', 'y|y,z': 'd15', 'y|z,y': 'd15' };
+
+function layout(p) { // p: {lp2, lc, D (THz), anchor}
+  const p2 = C / p.lp2;
+  let s, i;
+  if (p.anchor === 'signal') { s = C / p.lc; i = s - p.D; } else { const nc = C / p.lc; s = nc + p.D / 2; i = nc - p.D / 2; }
+  const p1 = p2 + p.D, p3 = p2 - p.D;
+  return { p1, p2, p3, s, i, w1: p2 + s, w2: p2 + i };
+}
+
+// lab polarization (H, V) -> crystal axis; normal crystal: H along z, V along y; rotated crystal: H along y, V along z
+const MAP_N = { H: 'z', V: 'y' }, MAP_R = { H: 'y', V: 'z' };
+const WANT = { 'H(ωs)|ωp2|H': 'H1', 'H(ωi)|ωp2|H': 'H2', 'V(ωi)|ωp1|V': 'V1', 'V(ωs)|ωp3|V': 'V2' };
+function processesFor(p, map, wantedLabels, crystal, zOnly = false) { // zOnly: keep only d33 (all fields along z)
+  const L = layout(p), T = p.T;
+  const pumps = [['ωp1', L.p1, 'V'], ['ωp2', L.p2, 'H'], ['ωp3', L.p3, 'V']];
+  const phot = [['H(ωs)', L.s, 'H'], ['H(ωi)', L.i, 'H'], ['V(ωs)', L.s, 'V'], ['V(ωi)', L.i, 'V']];
+  const labOf = ax => ax === map.H ? 'H' : 'V';
+  const out = [];
+  const same = (a, b) => Math.abs(a - b) < 1e-7;
+  for (const [pn, pnu, plab] of pumps) for (const [fn, fnu, flab] of phot) for (const op of ['y', 'z']) {
+    const pp = map[plab], fp = map[flab];
+    const coef = ALLOWED[`${op}|${pp},${fp}`] || ALLOWED[`${op}|${fp},${pp}`];
+    if (!coef || (!MIXED && (coef === 'd31' || coef === 'd15')) || (zOnly && coef !== 'd33')) continue;
+    const olab = labOf(op), onu = pnu + fnu, dk = kOf(op, onu, T) - kOf(pp, pnu, T) - kOf(fp, fnu, T);
+    const w = WANT[`${fn}|${pn}|${olab}`];
+    let cat;
+    if (w) cat = wantedLabels.includes(w) ? 'wanted' : 'offdesign';
+    else if (same(onu, L.w1) || same(onu, L.w2)) cat = 'inband';
+    else if (flab === 'V' && plab === 'V' && olab === 'V') cat = 'crosstalk';
+    else cat = 'loss';
+    out.push({ name: `${fn} + ${pn} → ${olab}`, label: cat === 'wanted' ? w : '', tag: w || '', photonPol: flab, pumpLab: plab, pumpPol: pp, pump: pn,
+      outPol: op, coef, lam: C / onu, dk, cat, kind: 'photon', crystal });
+  }
+  for (let a = 0; a < 3; a++) for (let b = a; b < 3; b++) for (const op of ['y', 'z']) {
+    const [an, anu, al] = pumps[a], [bn, bnu, bl] = pumps[b], ap = map[al], bp = map[bl];
+    const coef = ALLOWED[`${op}|${ap},${bp}`] || ALLOWED[`${op}|${bp},${ap}`];
+    if (!coef || (!MIXED && (coef === 'd31' || coef === 'd15')) || (zOnly && coef !== 'd33')) continue;
+    const onu = anu + bnu, dk = kOf(op, onu, T) - kOf(ap, anu, T) - kOf(bp, bnu, T);
+    out.push({ name: `${an} + ${bn} → ${labOf(op)}`, label: '', tag: '', photonPol: '', pumpLab: '', pumpPol: ap + bp, pump: an + bn, outPol: op, coef, lam: C / onu, dk, cat: 'pump', kind: 'pump', crystal });
+  }
+  return out;
+}
+// mode 'one': one crystal, H via d33 and V via d22. mode 'two': crystal H (normal) then crystal V (rotated 90 deg), both via d33
+function processes(p, mode) {
+  const L = layout(p);
+  if (mode === 'two') return { L, list: processesFor(p, MAP_N, ['H1', 'H2'], 'H', true).concat(processesFor(p, MAP_R, ['V1', 'V2'], 'V', true)) };
+  return { L, list: processesFor(p, MAP_N, ['H1', 'H2', 'V1', 'V2'], '') };
+}
+function idealPeriods(p, mode) { // periods (um) at operating T and as 25 C mask
+  const { list } = processes(p, mode);
+  const g = n => list.find(x => x.label === n).dk;
+  const KH = (g('H1') + g('H2')) / 2, KV = (g('V1') + g('V2')) / 2;
+  const LH = 2 * Math.PI / KH, LV = 2 * Math.PI / KV, e = expansion(p.T);
+  return { LH, LV, LH25: LH / e, LV25: LV / e };
+}
+// group delays (ps) of the converted H and V photons, weak-conversion estimate with uniform generation along each crystal
+function delays(p, mode, LHmm, LVmm) {
+  const L = layout(p), T = p.T, nc = (L.s + L.i) / 2, no = L.p2 + nc, h = 1e-3;
+  const beta = (ax, nu) => (kOf(ax, nu + h, T) - kOf(ax, nu - h, T)) / (2 * h) / (2 * Math.PI); // ps per um
+  const eT = beta('z', nc), eO = beta('z', no), oT = beta('y', nc), oO = beta('y', no);
+  const a = LHmm * 1000, b = LVmm * 1000;
+  if (mode === 'two') {
+    const tH = a / 2 * (eT + eO) + b * oO, tV = a * oT + b / 2 * (eT + eO);
+    return { dtau: tH - tV, wH: a * Math.abs(eO - eT), wV: b * Math.abs(eO - eT) };
+  }
+  const tH = a / 2 * (eT + eO), tV = a / 2 * (oT + oO);
+  return { dtau: tH - tV, wH: a * Math.abs(eO - eT), wV: a * Math.abs(oO - oT) };
+}
+
+// ---------- grating synthesis: returns domain walls (um) and sign of first domain ----------
+function buildGrating(g) { // g: {type, LH, LV (um at T), Lmm, wV (0..1 weight / fraction)}
+  const Lum = g.Lmm * 1000, walls = [0];
+  if (g.type === 'cascaded') {
+    const LV0 = Lum * (1 - g.wV);
+    let x = 0, half = g.LH / 2;
+    while (x + half < LV0) { x += half; walls.push(x); }
+    if (walls[walls.length - 1] < LV0 - 1e-9) walls.push(LV0);
+    x = LV0; half = g.LV / 2;
+    while (x + half < Lum) { x += half; walls.push(x); }
+    walls.push(Lum);
+    // merge any sliver at the joints
+    const clean = [walls[0]];
+    for (let k = 1; k < walls.length; k++) if (walls[k] - clean[clean.length - 1] > 1e-6) clean.push(walls[k]);
+    // signs alternate; a short domain at the H/V junction is merged like any other
+    return { walls: enforceMin(clean, g.minDomain || 0), s0: 1 };
+  }
+  const KH = 2 * Math.PI / g.LH, KV = 2 * Math.PI / g.LV, wH = 1 - g.wV, wV = g.wV;
+  const f = x => wH * Math.cos(KH * x) + wV * Math.cos(KV * x);
+  const dx = Math.min(g.LH, g.LV) / 200;
+  let xp = 0, fp = f(0);
+  const s0 = fp >= 0 ? 1 : -1;
+  for (let x = dx; x <= Lum + 1e-9; x += dx) {
+    const fx = f(x);
+    if ((fx >= 0) !== (fp >= 0)) {
+      let a = xp, b = x, fa = fp; // bisection
+      for (let it = 0; it < 30; it++) { const m = 0.5 * (a + b), fm = f(m); if ((fm >= 0) === (fa >= 0)) { a = m; fa = fm; } else b = m; }
+      walls.push(0.5 * (a + b));
+    }
+    xp = x; fp = fx;
+  }
+  if (walls[walls.length - 1] < Lum) walls.push(Lum);
+  return { walls: enforceMin(walls, g.minDomain || 0), s0 };
+}
+// remove domains narrower than dmin by deleting the pair of walls around them (the sliver merges with its neighbours)
+function enforceMin(walls, dmin) {
+  if (!(dmin > 0)) return walls;
+  const w = walls.slice(); let changed = true;
+  while (changed) {
+    changed = false;
+    for (let k = 1; k < w.length - 1; k++) {
+      if (w[k + 1] - w[k] < dmin && k + 1 < w.length - 1) { w.splice(k, 2); changed = true; break; }
+    }
+  }
+  return w;
+}
+function domainStats(gr) {
+  const w = []; for (let k = 1; k < gr.walls.length; k++) w.push(gr.walls[k] - gr.walls[k - 1]);
+  const inner = w.slice(1, -1).sort((a, b) => a - b);
+  return { n: w.length, min: inner.length ? inner[0] : NaN, median: inner.length ? inner[Math.floor(inner.length / 2)] : NaN };
+}
+// normalized Fourier amplitude Phi(dk) = (1/L) int g(x) exp(-i dk x) dx ; |Phi| = 2/pi for an ideal periodic grating
+function phi(gr, dk) {
+  const W = gr.walls, L = W[W.length - 1];
+  let re = 0, im = 0, s = gr.s0;
+  let ca = 1, sa = 0; // exp(-i dk x) at x=0
+  for (let k = 1; k < W.length; k++) {
+    const cb = Math.cos(dk * W[k]), sb = -Math.sin(dk * W[k]);
+    re += s * (cb - ca); im += s * (sb - sa);
+    ca = cb; sa = sb; s = -s;
+  }
+  // integral of exp(-i dk x) = (e_b - e_a)/(-i dk) = i (e_b - e_a)/dk
+  const rr = -im / dk, ii = re / dk;
+  return Math.hypot(rr, ii) / L;
+}
+
+// ---------- single-photon coupled-mode dynamics through the actual domain pattern ----------
+// modes: telecom (index t) and output (index o); edges {t, o, dk}; all couplings kappa (rad/um) with g=+-1
+function evolve(gr, nModes, edges, kappa, start, hmax) {
+  const re = new Float64Array(nModes), im = new Float64Array(nModes); re[start] = 1;
+  const E = edges.length;
+  const pr = new Float64Array(E), pi = new Float64Array(E); for (let e = 0; e < E; e++) pr[e] = 1; // exp(-i dk z)
+  const k1r = new Float64Array(nModes), k1i = new Float64Array(nModes), k2r = new Float64Array(nModes), k2i = new Float64Array(nModes),
+    k3r = new Float64Array(nModes), k3i = new Float64Array(nModes), k4r = new Float64Array(nModes), k4i = new Float64Array(nModes),
+    yr = new Float64Array(nModes), yi = new Float64Array(nModes);
+  const hr = new Float64Array(E), hi = new Float64Array(E), mr = new Float64Array(E), mi = new Float64Array(E), qr = new Float64Array(E), qi = new Float64Array(E);
+  const W = gr.walls; let s = gr.s0;
+  function deriv(ar, ai, cr, ci, kg, outr, outi) { // cr,ci: phasor exp(-i dk z) per edge
+    outr.fill(0); outi.fill(0);
+    for (let e = 0; e < E; e++) {
+      const { t, o } = edges[e];
+      // d out/dz = i kg a_t ph ; d t/dz = i kg a_o conj(ph)
+      const xr = ar[t] * cr[e] - ai[t] * ci[e], xi = ar[t] * ci[e] + ai[t] * cr[e];
+      outr[o] += -kg * xi; outi[o] += kg * xr;
+      const yr2 = ar[o] * cr[e] + ai[o] * ci[e], yi2 = ai[o] * cr[e] - ar[o] * ci[e];
+      outr[t] += -kg * yi2; outi[t] += kg * yr2;
+    }
+  }
+  for (let d = 1; d < W.length; d++) {
+    const width = W[d] - W[d - 1], n = Math.max(1, Math.ceil(width / hmax)), h = width / n, kg = kappa * s;
+    for (let e = 0; e < E; e++) { const a = -edges[e].dk * h / 2; hr[e] = Math.cos(a); hi[e] = Math.sin(a); }
+    for (let st = 0; st < n; st++) {
+      for (let e = 0; e < E; e++) { mr[e] = pr[e] * hr[e] - pi[e] * hi[e]; mi[e] = pr[e] * hi[e] + pi[e] * hr[e];
+        qr[e] = mr[e] * hr[e] - mi[e] * hi[e]; qi[e] = mr[e] * hi[e] + mi[e] * hr[e]; }
+      deriv(re, im, pr, pi, kg, k1r, k1i);
+      for (let j = 0; j < nModes; j++) { yr[j] = re[j] + 0.5 * h * k1r[j]; yi[j] = im[j] + 0.5 * h * k1i[j]; }
+      deriv(yr, yi, mr, mi, kg, k2r, k2i);
+      for (let j = 0; j < nModes; j++) { yr[j] = re[j] + 0.5 * h * k2r[j]; yi[j] = im[j] + 0.5 * h * k2i[j]; }
+      deriv(yr, yi, mr, mi, kg, k3r, k3i);
+      for (let j = 0; j < nModes; j++) { yr[j] = re[j] + h * k3r[j]; yi[j] = im[j] + h * k3i[j]; }
+      deriv(yr, yi, qr, qi, kg, k4r, k4i);
+      for (let j = 0; j < nModes; j++) { re[j] += h / 6 * (k1r[j] + 2 * k2r[j] + 2 * k3r[j] + k4r[j]); im[j] += h / 6 * (k1i[j] + 2 * k2i[j] + 2 * k3i[j] + k4i[j]); }
+      for (let e = 0; e < E; e++) { pr[e] = qr[e]; pi[e] = qi[e]; }
+    }
+    s = -s;
+  }
+  const P = new Float64Array(nModes); for (let j = 0; j < nModes; j++) P[j] = re[j] * re[j] + im[j] * im[j];
+  return P;
+}
+// V lattice: telecom nu = nc + m*D/2 (m odd), outputs nu = p2 + nc + n*D/2 ; pump p1 (+D) maps m -> m+2, p3 (-D) maps m -> m-2
+function vLattice(p, M, ax = 'y') {
+  const L = layout(p), T = p.T, nc = (L.s + L.i) / 2;
+  const tel = [], out = []; for (let m = -M; m <= M; m += 2) tel.push(m); for (let n = -M - 2; n <= M + 2; n += 2) out.push(n);
+  const nT = tel.length, edges = [];
+  tel.forEach((m, t) => {
+    for (const [sh, pnu] of [[2, L.p1], [-2, L.p3]]) {
+      const n = m + sh, o = out.indexOf(n); if (o < 0) continue;
+      const tnu = nc + m * p.D / 2, onu = L.p2 + nc + n * p.D / 2;
+      edges.push({ t, o: nT + o, dk: kOf(ax, onu, T) - kOf(ax, pnu, T) - kOf(ax, tnu, T) });
+    }
+  });
+  return { tel, out, nT, nModes: nT + out.length, edges };
+}
+function classify(lat, P, start, which) {
+  const tgtN = which === 'i' ? 1 : -1;
+  let target = 0, wrong = 0, xt = 0, left = P[start];
+  lat.out.forEach((n, o) => { const v = P[lat.nT + o]; if (n === tgtN) target += v; else if (n === -tgtN) wrong += v; else xt += v; });
+  return { target, wrong, crosstalk: xt, left };
+}
+function fateV(p, gr, sV, which, ax = 'y') { // which: 'i' (target w1, via p1) or 's' (target w2, via p3)
+  const lat = vLattice(p, 7, ax), Lum = p.Lmm * 1000, kappa = sV / (Lum * 2 / Math.PI);
+  const start = lat.tel.indexOf(which === 'i' ? -1 : 1);
+  const edges = lat.edges.filter(e => e.t === start); // the photon's own two links: target (right pump) and crosstalk (other pump)
+  const P = evolve(gr, lat.nModes, edges, kappa, start, p.hmax || 0.8);
+  return classify(lat, P, start, which);
+}
+function fateH(p, gr, sH, which) {
+  const L = layout(p), T = p.T, tnu = which === 's' ? L.s : L.i, onu = L.p2 + tnu;
+  const dk = kOf('z', onu, T) - kOf('z', L.p2, T) - kOf('z', tnu, T), Lum = p.Lmm * 1000;
+  const P = evolve(gr, 2, [{ t: 0, o: 1, dk }], sH / (Lum * 2 / Math.PI), 0, p.hmax || 0.8);
+  return { target: P[1], left: P[0] };
+}
+// ---------- reduced (component-only) model for fast scans ----------
+function reducedV(p, KV, s, which, ax = 'y') {
+  const lat = vLattice(p, 7, ax), Lum = p.Lmm * 1000;
+  const start = lat.tel.indexOf(which === 'i' ? -1 : 1);
+  const edges = lat.edges.filter(e => e.t === start).map(e => ({ t: e.t, o: e.o, dk: e.dk - KV }));
+  const maxd = Math.max(...edges.map(e => Math.abs(e.dk)));
+  const n = Math.max(120, Math.ceil(maxd * Lum / 0.25));
+  const P = evolve({ walls: [0, Lum], s0: 1 }, lat.nModes, edges, s / Lum, start, Lum / n);
+  return classify(lat, P, start, which);
+}
+function reducedH(p, KH, s) {
+  const L = layout(p), T = p.T; let best = 0;
+  const dk = kOf('z', L.p2 + L.s, T) - kOf('z', L.p2, T) - kOf('z', L.s, T) - KH, d = dk * p.Lmm * 1000 / 2;
+  for (let k = 1; k <= 200; k++) { const g = k * 0.04, W = Math.hypot(g, d); best = Math.max(best, g * g / (W * W) * Math.sin(W) ** 2); }
+  return best;
+}
+// ---------- balanced-gate estimate for the design scans (ideal single-period gratings) ----------
+// H: closed-form two-mode maximum over s (worst of the two H photons); V: three-mode maximum over s <= smax (worst of the two V photons)
+function hBest(p, KH) {
+  const L = layout(p), T = p.T, Lum = p.Lmm * 1000; let worst = 1;
+  for (const nu of [L.s, L.i]) {
+    const d = (kOf('z', L.p2 + nu, T) - kOf('z', L.p2, T) - kOf('z', nu, T) - KH) * Lum / 2; let b = 0;
+    for (let s = 0.02; s <= 3; s += 0.01) { const W = Math.hypot(s, d); b = Math.max(b, s * s / (W * W) * Math.sin(W) ** 2); }
+    worst = Math.min(worst, b);
+  }
+  return worst;
+}
+function vBest(p, KV, ax, smax = 2.5) {
+  const f = s => Math.min(reducedV(p, KV, s, 'i', ax).target, reducedV(p, KV, s, 's', ax).target);
+  let best = { t: -1, s: 0 };
+  for (let s = 0.1; s <= smax + 1e-9; s += 0.1) { const t = f(s); if (t > best.t) best = { t, s }; }
+  const s0 = best.s; for (let s = Math.max(0.02, s0 - 0.1); s <= Math.min(smax, s0 + 0.1) + 1e-9; s += 0.01) { const t = f(s); if (t > best.t) best = { t, s }; }
+  return best;
+}
+// balanced post-selected gate: the stronger side is lowered to the weaker one, so success = min(H best, V best)
+function gateBest(pH, pV, mode, KH, KV) {
+  const ax = mode === 'two' ? 'z' : 'y', H = hBest(pH, KH), v = vBest(pV, KV, ax);
+  return { g: Math.min(H, v.t), H, V: v.t, sV: v.s };
+}
+// three-mode photon fate with constant coefficients (ideal grating component): input coupled to two outputs
+// s1, s2: rotations over the crystal; d1, d2: detunings (Delta k - K) L / 2. Returns [P_in, P_1, P_2].
+function fate3(s1, d1, s2, d2) {
+  const N = Math.max(120, Math.ceil(24 * Math.max(Math.abs(d1), Math.abs(d2)))), h = 1 / N;
+  let a = [1, 0, 0, 0, 0, 0]; // re/im of a_in, a_1, a_2
+  const f = (x, y) => { const c1 = Math.cos(2 * d1 * x), n1 = -Math.sin(2 * d1 * x), c2 = Math.cos(2 * d2 * x), n2 = -Math.sin(2 * d2 * x);
+    // e1 = exp(-i 2 d1 x) = c1 + i n1
+    const m = (ar, ai, cr, ci) => [ar * cr - ai * ci, ar * ci + ai * cr];
+    const [p1r, p1i] = m(y[0], y[1], c1, n1), [p2r, p2i] = m(y[0], y[1], c2, n2);
+    const [q1r, q1i] = m(y[2], y[3], c1, -n1), [q2r, q2i] = m(y[4], y[5], c2, -n2);
+    // da1 = i s1 a0 e1 ; da2 = i s2 a0 e2 ; da0 = i (s1 a1 conj(e1) + s2 a2 conj(e2))
+    return [-(s1 * q1i + s2 * q2i), s1 * q1r + s2 * q2r, -s1 * p1i, s1 * p1r, -s2 * p2i, s2 * p2r]; };
+  for (let k = 0; k < N; k++) { const x = k * h, k1 = f(x, a), k2 = f(x + h / 2, a.map((v, j) => v + h / 2 * k1[j])), k3 = f(x + h / 2, a.map((v, j) => v + h / 2 * k2[j])), k4 = f(x + h, a.map((v, j) => v + h * k3[j]));
+    a = a.map((v, j) => v + h / 6 * (k1[j] + 2 * k2[j] + 2 * k3[j] + k4[j])); }
+  return [a[0] ** 2 + a[1] ** 2, a[2] ** 2 + a[3] ** 2, a[4] ** 2 + a[5] ** 2];
+}
+function rabi(s, d) { const W = Math.hypot(s, d); return W === 0 ? 0 : s * s / (W * W) * Math.sin(W) ** 2; }
+if (typeof module !== 'undefined') module.exports = { fate3, rabi, hBest, vBest, gateBest,  C, nLN, kOf, expansion, layout, processes, idealPeriods, delays, buildGrating, domainStats, phi, evolve, vLattice, classify, fateV, fateH, reducedV, reducedH };
+
+const EQ = {"delay1":["<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mi mathvariant=\"normal\">Δ</mi><mi>τ</mi><mo>=</mo><msub><mi>t</mi><mi>H</mi></msub><mo>−</mo><msub><mi>t</mi><mi>V</mi></msub></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle \\Delta\\tau = t_H - t_V</annotation></semantics></math></span>","<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><msub><mi>t</mi><mi>H</mi></msub><mo>=</mo><mi>L</mi><mtext> </mtext><msub><mover accent=\"true\"><mi>β</mi><mo>ˉ</mo></mover><mi>e</mi></msub><mo separator=\"true\">,</mo><mtext>  </mtext><msub><mi>t</mi><mi>V</mi></msub><mo>=</mo><mi>L</mi><mtext> </mtext><msub><mover accent=\"true\"><mi>β</mi><mo>ˉ</mo></mover><mi>o</mi></msub></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle t_H = L\\,\\bar\\beta_e,\\ \\ t_V = L\\,\\bar\\beta_o</annotation></semantics></math></span>","<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mover accent=\"true\"><mi>β</mi><mo>ˉ</mo></mover><mo>=</mo><mstyle displaystyle=\"false\" scriptlevel=\"0\"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo fence=\"false\" stretchy=\"true\" minsize=\"1.2em\" maxsize=\"1.2em\">[</mo><mi>β</mi><mo stretchy=\"false\">(</mo><mi>ν</mi><mo stretchy=\"false\">)</mo><mo>+</mo><mi>β</mi><mo stretchy=\"false\">(</mo><msub><mi>ν</mi><mtext>out</mtext></msub><mo stretchy=\"false\">)</mo><mo fence=\"false\" stretchy=\"true\" minsize=\"1.2em\" maxsize=\"1.2em\">]</mo></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle \\bar\\beta = \\tfrac{1}{2}\\big[\\beta(\\nu)+\\beta(\\nu_{\\text{out}})\\big]</annotation></semantics></math></span>","<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mi>w</mi><mo>=</mo><mi>L</mi><mtext> </mtext><mi mathvariant=\"normal\">∣</mi><mi>β</mi><mo stretchy=\"false\">(</mo><msub><mi>ν</mi><mtext>out</mtext></msub><mo stretchy=\"false\">)</mo><mo>−</mo><mi>β</mi><mo stretchy=\"false\">(</mo><mi>ν</mi><mo stretchy=\"false\">)</mo><mi mathvariant=\"normal\">∣</mi></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle w = L\\,|\\beta(\\nu_{\\text{out}})-\\beta(\\nu)|</annotation></semantics></math></span>"],"delay2":["<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mi mathvariant=\"normal\">Δ</mi><mi>τ</mi><mo>=</mo><msub><mi>t</mi><mi>H</mi></msub><mo>−</mo><msub><mi>t</mi><mi>V</mi></msub></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle \\Delta\\tau = t_H - t_V</annotation></semantics></math></span>","<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><msub><mi>t</mi><mi>H</mi></msub><mo>=</mo><msub><mi>L</mi><mi>H</mi></msub><mtext> </mtext><msub><mover accent=\"true\"><mi>β</mi><mo>ˉ</mo></mover><mi>e</mi></msub><mo>+</mo><msub><mi>L</mi><mi>V</mi></msub><mtext> </mtext><msub><mi>β</mi><mi>o</mi></msub><mo stretchy=\"false\">(</mo><msub><mi>ν</mi><mtext>out</mtext></msub><mo stretchy=\"false\">)</mo></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle t_H = L_H\\,\\bar\\beta_e + L_V\\,\\beta_o(\\nu_{\\text{out}})</annotation></semantics></math></span>","<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><msub><mi>t</mi><mi>V</mi></msub><mo>=</mo><msub><mi>L</mi><mi>H</mi></msub><mtext> </mtext><msub><mi>β</mi><mi>o</mi></msub><mo stretchy=\"false\">(</mo><mi>ν</mi><mo stretchy=\"false\">)</mo><mo>+</mo><msub><mi>L</mi><mi>V</mi></msub><mtext> </mtext><msub><mover accent=\"true\"><mi>β</mi><mo>ˉ</mo></mover><mi>e</mi></msub></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle t_V = L_H\\,\\beta_o(\\nu) + L_V\\,\\bar\\beta_e</annotation></semantics></math></span>","<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><msub><mover accent=\"true\"><mi>β</mi><mo>ˉ</mo></mover><mi>e</mi></msub><mo>=</mo><mstyle displaystyle=\"false\" scriptlevel=\"0\"><mfrac><mn>1</mn><mn>2</mn></mfrac></mstyle><mo fence=\"false\" stretchy=\"true\" minsize=\"1.2em\" maxsize=\"1.2em\">[</mo><msub><mi>β</mi><mi>e</mi></msub><mo stretchy=\"false\">(</mo><mi>ν</mi><mo stretchy=\"false\">)</mo><mo>+</mo><msub><mi>β</mi><mi>e</mi></msub><mo stretchy=\"false\">(</mo><msub><mi>ν</mi><mtext>out</mtext></msub><mo stretchy=\"false\">)</mo><mo fence=\"false\" stretchy=\"true\" minsize=\"1.2em\" maxsize=\"1.2em\">]</mo></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle \\bar\\beta_e = \\tfrac{1}{2}\\big[\\beta_e(\\nu)+\\beta_e(\\nu_{\\text{out}})\\big]</annotation></semantics></math></span>","<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mi>w</mi><mo>=</mo><mi>L</mi><mtext> </mtext><mi mathvariant=\"normal\">∣</mi><msub><mi>β</mi><mi>e</mi></msub><mo stretchy=\"false\">(</mo><msub><mi>ν</mi><mtext>out</mtext></msub><mo stretchy=\"false\">)</mo><mo>−</mo><msub><mi>β</mi><mi>e</mi></msub><mo stretchy=\"false\">(</mo><mi>ν</mi><mo stretchy=\"false\">)</mo><mi mathvariant=\"normal\">∣</mi></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle w = L\\,|\\beta_e(\\nu_{\\text{out}})-\\beta_e(\\nu)|</annotation></semantics></math></span>"],"acc":["<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mtext>FWHM</mtext><mo>=</mo><mfrac><mn>5.566</mn><mrow><mi>L</mi><mtext> </mtext><mi mathvariant=\"normal\">∣</mi><mi mathvariant=\"normal\">∂</mi><mi mathvariant=\"normal\">Δ</mi><mi>k</mi><mi mathvariant=\"normal\">/</mi><mi mathvariant=\"normal\">∂</mi><mi>ν</mi><mi mathvariant=\"normal\">∣</mi></mrow></mfrac></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle \\text{FWHM} = \\dfrac{5.566}{L\\,|\\partial\\Delta k/\\partial\\nu|}</annotation></semantics></math></span>","<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mtext>shift</mtext><mo>=</mo><mfrac><mrow><mi mathvariant=\"normal\">∣</mi><mi>ν</mi><mo>−</mo><msub><mi>ν</mi><mtext>pump</mtext></msub><mi mathvariant=\"normal\">∣</mi></mrow><mi>c</mi></mfrac></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle \\text{shift} = \\dfrac{|\\nu-\\nu_{\\text{pump}}|}{c}</annotation></semantics></math></span>"],"Ht":["<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mi>η</mi><mo>=</mo><mfrac><mrow><mo stretchy=\"false\">(</mo><mi>d</mi><mi mathvariant=\"normal\">/</mi><msub><mi>d</mi><mn>33</mn></msub><msup><mo stretchy=\"false\">)</mo><mn>2</mn></msup><mtext> </mtext><msup><mi>L</mi><mn>2</mn></msup><mtext> </mtext><mi>y</mi></mrow><mrow><mo stretchy=\"false\">(</mo><mn>50</mn><mtext> mm</mtext><msup><mo stretchy=\"false\">)</mo><mn>2</mn></msup></mrow></mfrac></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle \\eta = \\dfrac{(d/d_{33})^2\\,L^2\\,y}{(50\\ \\text{mm})^2}</annotation></semantics></math></span>","<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mi>y</mi><mo>=</mo><msup><mrow><mo fence=\"true\">[</mo><mfrac><mrow><mi mathvariant=\"normal\">∣</mi><mi mathvariant=\"normal\">Φ</mi><mo stretchy=\"false\">(</mo><mi mathvariant=\"normal\">Δ</mi><mi>k</mi><mo stretchy=\"false\">)</mo><mi mathvariant=\"normal\">∣</mi></mrow><mrow><mn>2</mn><mi mathvariant=\"normal\">/</mi><mi>π</mi></mrow></mfrac><mo fence=\"true\">]</mo></mrow><mn>2</mn></msup></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle y = \\left[\\dfrac{|\\Phi(\\Delta k)|}{2/\\pi}\\right]^2</annotation></semantics></math></span>"],"Vt":["<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mi>η</mi><mo>=</mo><mfrac><mrow><mo stretchy=\"false\">(</mo><mi>d</mi><mi mathvariant=\"normal\">/</mi><msub><mi>d</mi><mn>33</mn></msub><msup><mo stretchy=\"false\">)</mo><mn>2</mn></msup><mtext> </mtext><msup><mi>L</mi><mn>2</mn></msup><mtext> </mtext><mi>y</mi></mrow><mrow><mo stretchy=\"false\">(</mo><mn>50</mn><mtext> mm</mtext><msup><mo stretchy=\"false\">)</mo><mn>2</mn></msup></mrow></mfrac></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle \\eta = \\dfrac{(d/d_{33})^2\\,L^2\\,y}{(50\\ \\text{mm})^2}</annotation></semantics></math></span>","<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mi>y</mi><mo>=</mo><msup><mrow><mo fence=\"true\">[</mo><mfrac><mrow><mi mathvariant=\"normal\">∣</mi><mi mathvariant=\"normal\">Φ</mi><mo stretchy=\"false\">(</mo><mi mathvariant=\"normal\">Δ</mi><mi>k</mi><mo stretchy=\"false\">)</mo><mi mathvariant=\"normal\">∣</mi></mrow><mrow><mn>2</mn><mi mathvariant=\"normal\">/</mi><mi>π</mi></mrow></mfrac><mo fence=\"true\">]</mo></mrow><mn>2</mn></msup></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle y = \\left[\\dfrac{|\\Phi(\\Delta k)|}{2/\\pi}\\right]^2</annotation></semantics></math></span>","<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><msub><mi>η</mi><mrow><mi>x</mi><mi>t</mi></mrow></msub><mo>=</mo><mfrac><mrow><mo stretchy=\"false\">(</mo><mi>d</mi><mi mathvariant=\"normal\">/</mi><msub><mi>d</mi><mn>33</mn></msub><msup><mo stretchy=\"false\">)</mo><mn>2</mn></msup><mtext> </mtext><msup><mi>L</mi><mn>2</mn></msup><mtext> </mtext><msub><mi>y</mi><mrow><mi>x</mi><mi>t</mi></mrow></msub></mrow><mrow><mo stretchy=\"false\">(</mo><mn>50</mn><mtext> mm</mtext><msup><mo stretchy=\"false\">)</mo><mn>2</mn></msup></mrow></mfrac></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle \\eta_{xt} = \\dfrac{(d/d_{33})^2\\,L^2\\,y_{xt}}{(50\\ \\text{mm})^2}</annotation></semantics></math></span>"],"worst":["<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mi>min</mi><mo>⁡</mo><mtext> </mtext><mi>η</mi><mtext>  over the four targets</mtext></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle \\min\\ \\eta\\ \\ \\text{over the four targets}</annotation></semantics></math></span>"],"xt":["<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mi>max</mi><mo>⁡</mo><mtext> </mtext><mfrac><msub><mi>y</mi><mrow><mi>x</mi><mi>t</mi></mrow></msub><msub><mi>y</mi><mi>t</mi></msub></mfrac><mtext>  over the two V photons</mtext></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle \\max\\ \\dfrac{y_{xt}}{y_t}\\ \\ \\text{over the two V photons}</annotation></semantics></math></span>"],"pratio":["<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mfrac><msub><mi>P</mi><mi>V</mi></msub><msub><mi>P</mi><mi>H</mi></msub></mfrac><mo>=</mo><mfrac><mrow><msubsup><mi>d</mi><mn>33</mn><mn>2</mn></msubsup><mtext> </mtext><msubsup><mi>L</mi><mi>H</mi><mn>2</mn></msubsup><mtext> </mtext><msub><mi>y</mi><mi>H</mi></msub></mrow><mrow><msubsup><mi>d</mi><mi>V</mi><mn>2</mn></msubsup><mtext> </mtext><msubsup><mi>L</mi><mi>V</mi><mn>2</mn></msubsup><mtext> </mtext><msub><mi>y</mi><mi>V</mi></msub></mrow></mfrac></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle \\dfrac{P_V}{P_H} = \\dfrac{d_{33}^2\\,L_H^2\\,y_H}{d_V^2\\,L_V^2\\,y_V}</annotation></semantics></math></span>","<span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mstyle scriptlevel=\"0\" displaystyle=\"true\"><mtext>from  </mtext><mi>η</mi><mo>∝</mo><mi>P</mi><mtext> </mtext><msup><mi>d</mi><mn>2</mn></msup><msup><mi>L</mi><mn>2</mn></msup><mtext> </mtext><mi>y</mi></mstyle></mrow><annotation encoding=\"application/x-tex\">\\displaystyle \\text{from}\\ \\ \\eta \\propto P\\,d^2 L^2\\,y</annotation></semantics></math></span>"]};
+</script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const TWO_PI = 2 * Math.PI, IDEAL = 2 / Math.PI, REF_L = 50; // mm: 100% = perfectly phase-matched d33 crystal of this length
+  const st = { sH: 1.2, sV: 1.8 };
+  let cur = null, timer = null, busy = false;
+  const fmt = (x, d = 2) => Number.isFinite(x) ? x.toFixed(d) : '—';
+  const pct = x => (100 * x).toFixed(1) + '%';
+  const nmOf = nu => C / nu;
+  function readInputs() {
+    return {
+      mode: $('mode').value, LVmm: +$('LVlen').value,
+      lp2: +$('lp2').value, lc: +$('lc').value, anchor: $('anchor').value, D: +$('D').value, T: +$('T').value, Lmm: +$('L').value,
+      LH25: +$('LH').value, LV25: +$('LV').value, gtype: $('gtype').value, wV: +$('wV').value, minD: +$('minD').value,
+      d33: +$('d33').value, d22: +$('d22').value, d31: +$('d31').value, d15: +$('d15').value
+    };
+  }
+  function setIdealPeriods() {
+    const v = readInputs(); const per = idealPeriods({ lp2: v.lp2, lc: v.lc, D: v.D, anchor: v.anchor, T: v.T }, v.mode);
+    $('LH').value = per.LH.toFixed(6); $('LV').value = per.LV.toFixed(6);
+  }
+  function labels(v) {
+    const lay = layout(v), nmD = Math.abs(nmOf(lay.s) - nmOf(lay.i));
+    $('Dv').textContent = `${(v.D * 1000).toFixed(0)} GHz`;
+    $('Dh').textContent = `${nmD.toFixed(2)} nm between signal and idler · ${Math.round(v.D / 0.025)} comb lines of 25 GHz`;
+    $('Tv').textContent = `${v.T.toFixed(1)} °C`; $('Lv').textContent = `${v.Lmm.toFixed(2)} mm`; $('LVlenv').textContent = `${v.LVmm.toFixed(2)} mm`;
+    const two = v.mode === 'two';
+    $('LVwrap').hidden = !two; $('gridOpts').hidden = two;
+    $('Llab').textContent = two ? 'Length of H crystal' : 'Length';
+    $('perLabH').innerHTML = two ? 'Λ, H crystal (µm)' : 'Λ<sub>H</sub> (µm)';
+    $('perLabV').innerHTML = two ? 'Λ, V crystal (µm)' : 'Λ<sub>V</sub> (µm)';
+    $('wVv').textContent = v.wV.toFixed(2);
+    $('wVlab').innerHTML = v.gtype === 'cascaded' ? 'V share w<sub>V</sub> (fraction of length for V)' : 'V share w<sub>V</sub> (weight of the V period)';
+  }
+
+  function featsFor(KH, KV, single) {
+    const feats = [];
+    if (single) { for (const [m, K, nm] of [[1, KH, 'K'], [3, 3 * KH, '3K']]) feats.push({ m, n: 0, K, name: nm }); return feats; }
+    for (let m = -3; m <= 3; m++) for (let n = -3; n <= 3; n++) {
+      if (Math.abs(m) + Math.abs(n) > 3 || Math.abs(m + n) % 2 !== 1) continue;
+      const K = m * KH + n * KV; if (K <= 0) continue;
+      const term = (c, s) => (Math.abs(c) === 1 ? '' : Math.abs(c)) + s;
+      const parts = [[m, 'K_H'], [n, 'K_V']].filter(q => q[0] !== 0).sort((a, b) => b[0] - a[0]);
+      const name = parts.map((q, j) => (j === 0 ? (q[0] < 0 ? '−' : '') : (q[0] < 0 ? ' − ' : ' + ')) + term(q[0], q[1])).join('');
+      feats.push({ m, n, K, name });
+    }
+    return feats;
+  }
+  // single-period grating with a whole number of periods (as poled in practice), closest to the requested length
+  function periodic(Lambda, Lmm) { const n = Math.max(1, Math.round(Lmm * 1000 / Lambda)), w = []; for (let j = 0; j <= 2 * n; j++) w.push(j * Lambda / 2); return { walls: w, s0: 1 }; }
+
+  function compute() {
+    const v = readInputs(); labels(v);
+    const two = v.mode === 'two';
+    const p = { lp2: v.lp2, lc: v.lc, D: v.D, anchor: v.anchor, T: v.T, Lmm: v.Lmm, hmax: 0.8 };
+    const LmmH = v.Lmm, LmmV = two ? v.LVmm : v.Lmm;
+    const pH = { ...p, Lmm: LmmH }, pV = { ...p, Lmm: LmmV };
+    const pr = processes(p, v.mode), LH = v.LH25, LV = v.LV25, KH = TWO_PI / LH, KV = TWO_PI / LV;
+    const ideal = idealPeriods(p, v.mode), resH = TWO_PI / (LmmH * 1000), resV = TWO_PI / (LmmV * 1000);
+    let grH, grV;
+    if (two) { grH = periodic(LH, LmmH); grV = periodic(LV, LmmV); }
+    else { grH = grV = buildGrating({ type: v.gtype, LH, LV, Lmm: v.Lmm, wV: v.wV, minDomain: v.minD }); }
+    const crys = two ? {
+      H: { gr: grH, res: resH, feats: featsFor(KH, KH, true), K: KH, Lmm: LmmH, stats: domainStats(grH) },
+      V: { gr: grV, res: resV, feats: featsFor(KV, KV, true), K: KV, Lmm: LmmV, stats: domainStats(grV) } } : null;
+    const one = two ? null : { gr: grH, res: resH, feats: featsFor(KH, KV, false), Lmm: LmmH, stats: domainStats(grH) };
+    const ctx = x => two ? crys[x.crystal] : one;
+    const dcoef = { d33: v.d33, d22: v.d22, d31: v.d31, d15: v.d15 };
+    const dV = two ? v.d33 : v.d22, axV = two ? 'z' : 'y';
+    const EH = 1, EV = 1; // equal pump fields (pump powers not modelled yet)
+    for (const x of pr.list) { x.phi = phi(ctx(x).gr, Math.abs(x.dk)); }
+    const w = n => pr.list.find(x => x.label === n);
+    const ref = { H: v.d33 * EH * w('H1').phi, V: dV * EV * w('V1').phi };
+    for (const x of pr.list) {
+      const c = ctx(x); let best = null;
+      for (const f of c.feats) { const d = (Math.abs(x.dk) - f.K) / c.res; if (!best || Math.abs(d) < Math.abs(best.d)) best = { d, f }; }
+      x.near = best;
+      if (x.kind === 'photon') {
+        const E = x.pumpLab === 'H' ? EH : EV; const r = x.photonPol === 'H' ? ref.H : ref.V;
+        x.rel = r > 0 ? 20 * Math.log10(Math.max(1e-12, dcoef[x.coef] * E * x.phi) / r) : NaN;
+      } else x.rel = NaN;
+    }
+    // weak-conversion phase-matching factors y = (|Phi| / (2/pi))^2
+    const yOf = x => x ? (x.phi / IDEAL) ** 2 : NaN, xtOf = start => yOf(pr.list.find(x => x.cat === 'crosstalk' && x.name.startsWith(start)));
+    const weak = { Hs: yOf(w('H1')), Hi: yOf(w('H2')), Vi: yOf(w('V1')), Vs: yOf(w('V2')), Vix: xtOf('V(ωi) + ωp3'), Vsx: xtOf('V(ωs) + ωp1') };
+    // photon acceptance FWHM (GHz): d(dk)/dnu
+    const accept = (pol, pumpNu, phNu, Lmm) => { const h = 1e-3; const f = nu => kOf(pol, pumpNu + nu, v.T) - kOf(pol, nu, v.T);
+      const slope = Math.abs((f(phNu + h) - f(phNu - h)) / (2 * h)); return 5.566 / (Lmm * 1000 * slope) * 1000; };
+    // reference (100%): a perfectly phase-matched (y = 1) d33 crystal of length REF_L, independent of every design setting
+    const etaRef = (REF_L * 1000) ** 2; // um^2
+    // best length at this spacing (ideal two-crystal periods): L = pi/delta for the smallest detuning; sets the length-scan range
+    const pr2 = processes(p, 'two'), per2 = idealPeriods(p, 'two'), K2 = { H: TWO_PI / per2.LH, V: TWO_PI / per2.LV };
+    const dmin = Math.min(...['H1', 'H2', 'V1', 'V2'].map(n => Math.abs(pr2.list.find(q => q.label === n).dk - K2[n[0]])));
+    const etaLbest = Math.PI / dmin / 1000; // mm
+    cur = { etaRef, etaLbest, v, p, pH, pV, two, pr, grH, grV, crys, one, ctx, KH, KV, LH, LV, ideal, resH, resV, weak, axV, dV,
+      delay: delays(p, v.mode, LmmH, LmmV),
+      accH: accept('z', pr.L.p2, pr.L.s, LmmH), accV: accept(axV, pr.L.p1, pr.L.i, LmmV) };
+    render(); scheduleScans();
+  }
+  function schedule() { clearTimeout(timer); timer = setTimeout(compute, 120); }
+
+  // ---------------- rendering helpers ----------------
+  const el = (tag, attrs, inner = '') => `<${tag} ${Object.entries(attrs).map(([k, val]) => `${k}="${val}"`).join(' ')}>${inner}</${tag}>`;
+  function ticks(a, b, n = 6) { const span = b - a, step0 = span / n, mag = 10 ** Math.floor(Math.log10(step0)); let step = mag;
+    for (const m of [1, 2, 2.5, 5, 10]) if (mag * m >= step0) { step = mag * m; break; }
+    const out = []; for (let t = Math.ceil(a / step) * step; t <= b + 1e-12; t += step) out.push(+t.toPrecision(10)); return { out, step }; }
+  const catColor = { wanted: 'var(--ok)', crosstalk: 'var(--xt)', inband: 'var(--wrong)', pump: 'var(--pump)', loss: 'var(--muted)', offdesign: 'var(--left)' };
+
+  // ---------------- crystal geometry (schematic oblique view) ----------------
+  function renderGeom() {
+    const c = cur, v = c.v, two = c.two, W = 860, H = 240, oy = 128;
+    const P = (x, y, z) => [x + y * 0.62, oy - z - y * 0.42];            // x: beam, y: lab horizontal (depth), z: lab vertical
+    const pts = a => a.map(q => P(...q).map(t => t.toFixed(1)).join(',')).join(' ');
+    const poly = (a, at) => el('polygon', { points: pts(a), ...at });
+    const line = (p, q, at) => { const [x1, y1] = P(...p), [x2, y2] = P(...q); return el('line', { x1, y1, x2, y2, ...at }); };
+    const txt = (p, s, at = {}) => { const [x, y] = P(...p); return el('text', { x, y, class: 'tick', ...at }, s); };
+    const arrowDefs = '<defs><marker id="ga" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0.6 L7.4,4 L0,7.4 z" fill="currentColor"/></marker></defs>';
+    // one block: x0..x0+len, half sizes hy (depth) and hz (vertical); walls as fractions 0..1, s0 first sign; zAxis 'y' (depth) or 'z' (vertical)
+    const block = (x0, len, hy, hz, fr, s0, zAxis, col, name) => {
+      let s = '';
+      const quad = (fa, fb, face) => { const xa = x0 + fa * len, xb = x0 + fb * len;
+        return face === 'front' ? [[xa, -hy, -hz], [xb, -hy, -hz], [xb, -hy, hz], [xa, -hy, hz]] : [[xa, -hy, hz], [xb, -hy, hz], [xb, hy, hz], [xa, hy, hz]]; };
+      let sg = s0;
+      for (let j = 0; j + 1 < fr.length; j++) {
+        const op = sg > 0 ? 0.42 : 0.12;
+        s += poly(quad(fr[j], fr[j + 1], 'front'), { fill: col, 'fill-opacity': op, stroke: 'none' }) + poly(quad(fr[j], fr[j + 1], 'top'), { fill: col, 'fill-opacity': op * 0.8, stroke: 'none' });
+        const xm = x0 + (fr[j] + fr[j + 1]) / 2 * len, wpx = (fr[j + 1] - fr[j]) * len;
+        if (wpx > 7) {
+          if (zAxis === 'z') s += line([xm, -hy, -sg * hz * 0.55], [xm, -hy, sg * hz * 0.55], { stroke: col, 'stroke-width': 1.3, 'marker-end': 'url(#ga)', style: `color:${col}` });
+          else s += line([xm, -sg * hy * 0.6, hz], [xm, sg * hy * 0.6, hz], { stroke: col, 'stroke-width': 1.3, 'marker-end': 'url(#ga)', style: `color:${col}` });
+        }
+        sg = -sg;
+      }
+      s += poly([[x0 + len, -hy, -hz], [x0 + len, hy, -hz], [x0 + len, hy, hz], [x0 + len, -hy, hz]], { fill: col, 'fill-opacity': 0.18, stroke: col, 'stroke-width': 1 });
+      s += poly(quad(0, 1, 'front'), { fill: 'none', stroke: col, 'stroke-width': 1.2 }) + poly(quad(0, 1, 'top'), { fill: 'none', stroke: col, 'stroke-width': 1.2 });
+      // crystal axes at the entrance corner
+      const a0 = [x0 + 4, -hy, -hz - 36], L1 = 22, tip = (p, d) => [p[0] + d[0], p[1] + d[1], p[2] + d[2]];
+      const ax = (d, lab, strong) => { const e = tip(a0, d.map(q => q * L1)), t = tip(a0, d.map(q => q * (L1 + 9)));
+        return line(a0, e, { stroke: strong ? 'var(--ink)' : 'var(--muted)', 'stroke-width': strong ? 1.4 : 1, 'marker-end': 'url(#ga)', style: `color:${strong ? 'var(--ink)' : 'var(--muted)'}` }) +
+          txt([t[0], t[1], t[2] - 3.5], lab, { 'text-anchor': 'middle', style: strong ? 'fill:var(--ink)' : '', 'font-weight': strong ? 600 : 400 }); };
+      s += ax([1, 0, 0], 'x') + (zAxis === 'z' ? ax([0, 0, 1], 'z', true) + ax([0, -1.1, 0], 'y') : ax([0, -1.1, 0], 'z', true) + ax([0, 0, 1], 'y'));
+      s += txt([x0 + len / 2, hy, hz + 10], name, { 'text-anchor': 'middle', style: `fill:${col}`, 'font-weight': 600 });
+      return s;
+    };
+    const periodic = (n) => { const f = []; for (let j = 0; j <= 2 * n; j++) f.push(j / (2 * n)); return f; };
+    const span = 560, x0 = 150;
+    let g = arrowDefs, info = '';
+    // beam
+    const beamEnd = x0 + span + 40;
+    g += line([20, 0, 0], [beamEnd, 0, 0], { stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-opacity': 0.55 });
+    g += line([beamEnd - 30, 0, 0], [beamEnd + 6, 0, 0], { stroke: 'var(--accent)', 'stroke-width': 2, 'marker-end': 'url(#ga)', style: 'color:var(--accent)' });
+    // input polarizations
+    g += line([52, -22, 0], [52, 22, 0], { stroke: 'var(--h)', 'stroke-width': 2, 'marker-start': 'url(#ga)', 'marker-end': 'url(#ga)', style: 'color:var(--h)' }) + txt([52, 30, 4], 'H', { 'text-anchor': 'middle', style: 'fill:var(--h)', 'font-weight': 600 });
+    g += line([100, 0, -20], [100, 0, 20], { stroke: 'var(--v)', 'stroke-width': 2, 'marker-start': 'url(#ga)', 'marker-end': 'url(#ga)', style: 'color:var(--v)' }) + txt([100, 0, 26], 'V', { 'text-anchor': 'middle', style: 'fill:var(--v)', 'font-weight': 600 });
+    const tl = (x, y, s, anc) => el('text', { x, y, class: 'tick', 'text-anchor': anc || 'start' }, s);
+    g += tl(10, 14, 'in: photons ωs, ωi (H or V)') + tl(10, 27, 'pumps ωp2 (H), ωp1 and ωp3 (V)');
+    g += tl(W - 10, 14, 'out: ω₁ = ωp2+ωs = ωp1+ωi', 'end') + tl(W - 10, 27, 'ω₂ = ωp2+ωi = ωp3+ωs', 'end');
+    const fmtL = x => `${x.toFixed(x < 10 ? 2 : 1)} mm`;
+    if (two) {
+      // schematic: both crystals drawn the same size whatever their lengths (lengths are in the labels)
+      const LH = c.pH.Lmm, LV = c.pV.Lmm, gap = 40, lH = (span - gap) / 2, lV = lH;
+      // H crystal: z along lab horizontal (thin along z: small depth), V crystal: z vertical (thin vertical)
+      g += block(x0, lH, 16, 42, periodic(14), 1, 'y', 'var(--h)', `H crystal, ${fmtL(LH)}`);
+      g += block(x0 + lH + gap, lV, 46, 14, periodic(14), 1, 'z', 'var(--v)', `V crystal (rotated 90° about x), ${fmtL(LV)}`);
+      info = `<b>H crystal</b>: z ∥ H, so H photons and ω<sub>p2</sub> use d<sub>33</sub>; Λ = ${c.LH.toFixed(3)} µm at ${v.T.toFixed(1)} °C, L = ${fmtL(LH)}. ` +
+        `<b>V crystal</b>: rotated 90° about x, z ∥ V, so V photons, ω<sub>p1</sub> and ω<sub>p3</sub> use d<sub>33</sub>; Λ = ${c.LV.toFixed(3)} µm, L = ${fmtL(LV)}. ` +
+        `Each crystal has ${Math.round(LH * 1000 / c.LH)} / ${Math.round(LV * 1000 / c.LV)} periods; 14 are drawn.`;
+    } else {
+      let fr, s0 = 1, note;
+      if (v.gtype === 'superimposed') {
+        const beat = TWO_PI / Math.abs(c.KV - c.KH), xm = Math.min(3 * beat, v.Lmm * 1000);
+        fr = [0, ...c.grH.walls.filter(w => w > 0 && w < xm).map(w => w / xm), 1]; s0 = c.grH.s0;
+        note = `the first ${xm.toFixed(0)} µm of the real superimposed pattern (3 beat periods of ${beat.toFixed(0)} µm), stretched to the full length`;
+      } else {
+        const nH = Math.max(2, Math.round(16 * (1 - v.wV))), nV = Math.max(2, Math.round(16 * v.wV * c.LH / c.LV));
+        fr = []; for (let j = 0; j <= 2 * nH; j++) fr.push((1 - v.wV) * j / (2 * nH)); for (let j = 1; j <= 2 * nV; j++) fr.push((1 - v.wV) + v.wV * j / (2 * nV));
+        note = `an H section (Λ<sub>H</sub>) followed by a V section (Λ<sub>V</sub>), schematic`;
+      }
+      g += block(x0, span, 16, 42, fr, s0, 'y', 'var(--pump)', '');
+      if (v.gtype !== 'superimposed') { // cascaded: mark the two sections and the junction
+        const xj = x0 + span * (1 - v.wV);
+        g += line([xj, -16, -42], [xj, -16, 42], { stroke: 'var(--ink)', 'stroke-width': 1.2, 'stroke-dasharray': '4 3' }) + line([xj, -16, 42], [xj, 16, 42], { stroke: 'var(--ink)', 'stroke-width': 1.2, 'stroke-dasharray': '4 3' });
+        g += txt([x0 + span * (1 - v.wV) / 2, 16, 52], `H section, Λ<tspan baseline-shift="sub" font-size="9">H</tspan> = ${c.LH.toFixed(2)} µm`, { 'text-anchor': 'middle', style: 'fill:var(--h)', 'font-weight': 600 });
+        g += txt([xj + span * v.wV / 2, 16, 52], `V section, Λ<tspan baseline-shift="sub" font-size="9">V</tspan> = ${c.LV.toFixed(2)} µm`, { 'text-anchor': 'middle', style: 'fill:var(--v)', 'font-weight': 600 });
+      }
+      info = `<b>One crystal, cascaded</b> (H section, then V section): z ∥ H, so H photons and ω<sub>p2</sub> use d<sub>33</sub>; V is along y, so V photons, ω<sub>p1</sub> and ω<sub>p3</sub> use d<sub>22</sub>. ` +
+        `Λ<sub>H</sub> = ${c.LH.toFixed(3)} µm, Λ<sub>V</sub> = ${c.LV.toFixed(3)} µm at ${v.T.toFixed(1)} °C, L = ${fmtL(v.Lmm)}. Drawn: ${note}.`;
+    }
+    $('geom').innerHTML = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Crystal geometry' }, g);
+    $('geomInfo').innerHTML = info;
+  }
+
+  function render() {
+    const c = cur, v = c.v;
+    renderGeom();
+    // periods hint
+    const dH = (c.KH - TWO_PI / c.ideal.LH) / c.resH, dV = (c.KV - TWO_PI / c.ideal.LV) / c.resV, z = q => (Math.abs(q) < 0.005 ? 0 : q).toFixed(2);
+    $('perHint').innerHTML = `Periods at ${v.T.toFixed(1)} °C. Offset of the entered periods from ideal: H ${z(dH)}, V ${z(dV)} (1 = the first zero of the sinc).`;
+    renderTiles(); renderLayout(); renderPM();
+    markScans();
+  }
+  function renderTiles() {
+    const c = cur, v = c.v, y = c.weak, dl = c.delay, f2 = q => q.toFixed(3), f2s = q => q >= 0.1 ? q.toFixed(2) : q.toPrecision(2);
+    const dr = (c.dV / v.d33) ** 2, LHu = c.grH.walls[c.grH.walls.length - 1], LVu = c.grV.walls[c.grV.walls.length - 1], gH = LHu * LHu / c.etaRef, gV = dr * LVu * LVu / c.etaRef;
+    const dlab = c.two ? 'd<sub>33</sub>' : 'd<sub>22</sub>', p1 = q => (100 * q).toFixed(q < 0.001 ? 3 : q < 0.1 ? 2 : 1) + '%';
+    const gVt = `(d/d<sub>33</sub>)² = ${dr.toFixed(4).replace(/\.?0+$/, '')} (V uses ${dlab}), L = ${c.pV.Lmm} mm`, gHt = `(d/d<sub>33</sub>)² = 1 (H uses d<sub>33</sub>), L = ${c.pH.Lmm} mm`;
+    const e = { Hs: gH * y.Hs, Hi: gH * y.Hi, Vi: gV * y.Vi, Vs: gV * y.Vs };
+    const shiftLo = Math.abs(Math.min(c.pr.L.s, c.pr.L.i) - c.pr.L.p1), shiftHi = Math.abs(Math.max(c.pr.L.s, c.pr.L.i) - c.pr.L.p3);
+    const cm = t => t / 0.0299792458, worst = Math.min(e.Hs, e.Hi, e.Vi, e.Vs), xr = Math.max(y.Vix / y.Vi, y.Vsx / y.Vs);
+    const P = q => (100 * q).toFixed(q < 0.001 ? 3 : q < 0.1 ? 2 : 1) + '%';
+    // weak conversion: eta ∝ P d^2 L^2 y  ->  equal H and V conversion needs P_V/P_H = (d33^2 L_H^2 y_H) / (d_V^2 L_V^2 y_V)
+    const pr = (v.d33 ** 2 * LHu ** 2 * Math.min(y.Hs, y.Hi)) / (c.dV ** 2 * LVu ** 2 * Math.min(y.Vi, y.Vs));
+    const ratioTxt = pr >= 100 ? pr.toFixed(0) + '×' : pr >= 10 ? pr.toFixed(1) + '×' : pr.toFixed(2) + '×';
+    const xV = { i: gV * y.Vix, s: gV * y.Vsx };
+    const tiles = [
+      ['v', 'V(ωi) → ω₁', P(e.Vi), `crosstalk ${P(xV.i)} (ratio ${f2(y.Vix / y.Vi)})<br>y = ${f2(y.Vi)} · ${gVt}`],
+      ['v', 'V(ωs) → ω₂', P(e.Vs), `crosstalk ${P(xV.s)} (ratio ${f2(y.Vsx / y.Vs)})<br>y = ${f2(y.Vs)} · ${gVt}`],
+      ['h', 'H(ωs) → ω₁', P(e.Hs), `no crosstalk (one pump)<br>y = ${f2(y.Hs)} · ${gHt}`],
+      ['h', 'H(ωi) → ω₂', P(e.Hi), `no crosstalk (one pump)<br>y = ${f2(y.Hi)} · ${gHt}`],
+      ['', 'Pump power per V pump / H pump', ratioTxt, `to give H and V the same conversion (weaker photon of each); ${c.two ? 'both d<sub>33</sub>' : 'H d<sub>33</sub>, V d<sub>22</sub>'}, same focusing`],
+    ];
+    const q = [EQ.Vt, EQ.Vt, EQ.Ht, EQ.Ht, EQ.pratio];
+    $('tiles').innerHTML = tiles.map(([cls, k, n, d], j) => `<div class="tile ${cls}"><span class="k">${k}</span><span class="n">${n}</span><span class="d">${d}</span><div class="eqs">${q[j].map(x => `<span>${x}</span>`).join('')}</div></div>`).join('');
+  }
+
+  function renderLayout() {
+    const c = cur, v = c.v, L = c.pr.L, W = 860, pad = 46, BRK = 104;
+    const fF = d => d < 1 ? `${(d * 1000).toFixed(0)} GHz` : `${d.toFixed(2)} THz`;
+    const fN = d => d < 1 ? `${d.toFixed(3)} nm` : `${d.toFixed(2)} nm`;
+    const it = (nu, lab, col, dash, wl) => ({ nu, nm: nmOf(nu), lab, col, dash, wl });
+    const nc = (L.s + L.i) / 2;
+    // telecom groups
+    const phot = [it(L.i, 'ωi', 'var(--ink)'), it(nc, 'ωc', 'var(--muted)', true), it(L.s, 'ωs', 'var(--ink)')];
+    const pmp = [it(L.p1, 'ωp1 (V)', 'var(--v)'), it(L.p2, 'ωp2 (H)', 'var(--h)'), it(L.p3, 'ωp3 (V)', 'var(--v)')];
+    // SFG groups (deduplicated by frequency)
+    const merge = arr => { const m = new Map(); for (const x of arr) { const k = x.nu.toFixed(6); if (m.has(k)) { const y = m.get(k); if (!y.lab.split(', ').includes(x.lab)) y.lab += ', ' + x.lab; } else m.set(k, { ...x }); } return [...m.values()]; };
+    const outs = merge([it(L.w1, 'ω₁', 'var(--ok)', false, true), it(L.w2, 'ω₂', 'var(--ok)', false, true), it(L.p2 + nc, 'ωp2+ωc', 'var(--muted)', true),
+      ...c.pr.list.filter(x => x.cat === 'crosstalk').map(x => it(C / x.lam, 'XT', 'var(--xt)', false, true))]);
+    const harm = merge(c.pr.list.filter(x => x.cat === 'pump').map(x => it(C / x.lam, x.pump.replace(/ω/g, ''), 'var(--pump)')));
+    const winLo = v.lp2 - 6, winHi = v.lp2 + 6;
+    const span = g => { const n = g.map(q => q.nm); return [Math.min(...n), Math.max(...n)]; };
+    // one band: two clusters on a broken axis (merged into one axis if they come close)
+    const band = (gA, gB, y0, title, gapPair, shadeB) => {
+      const H = 170, yLab = y0 + 18, yLine = y0 + 62, yDim = y0 + 100, yAx = y0 + 132;
+      let [a0, a1] = span(gA), [b0, b1] = span(gB);
+      const sepGap = b0 - a1 > 0.6 * ((a1 - a0) + (b1 - b0)) + 0.5;
+      const panels = sepGap ? [{ g: gA, lo: a0, hi: a1 }, { g: gB, lo: b0, hi: b1, shade: shadeB }] : [{ g: gA.concat(gB), lo: Math.min(a0, b0), hi: Math.max(a1, b1), shade: shadeB }];
+      const nS = g => Math.max(2, g.filter(q => !q.dash).length), avail = W - 2 * pad - (sepGap ? BRK : 0);
+      const tot = panels.reduce((t, P) => t + nS(P.g), 0); panels.forEach(P => P.w = avail * nS(P.g) / tot);
+      const pw = panels[0].w;
+      let s = el('text', { x: pad, y: y0 + 2, class: 'tick', 'font-weight': 600 }, title);
+      panels.forEach((P, j) => {
+        const x0 = j ? pad + pw + BRK : pad, w = Math.max(0.12, P.hi - P.lo), lo = P.lo - 0.12 * w - 0.03, hi = P.hi + 0.12 * w + 0.03;
+        const x = n => x0 + (n - lo) / (hi - lo) * P.w;
+        if (P.shade) { const s0 = Math.max(lo, P.shade[0]), s1 = Math.min(hi, P.shade[1]);
+          if (s1 > s0) s += el('rect', { x: x(s0), y: y0 + 8, width: x(s1) - x(s0), height: yAx - y0 - 8, fill: 'var(--v)', 'fill-opacity': 0.08 }) +
+            el('text', { x: x0 + P.w - 2, y: y0 + 2, 'text-anchor': 'end', class: 'tick' }, `laser window ${P.shade[0].toFixed(0)}–${P.shade[1].toFixed(0)} nm`); }
+        s += el('line', { x1: x0, x2: x0 + P.w, y1: yAx, y2: yAx, class: 'axis' });
+        if (sepGap) { const bx = j === 0 ? x0 + P.w : x0; s += el('line', { x1: bx - 4, x2: bx + 4, y1: yAx + 5, y2: yAx - 5, class: 'axis' }); }
+        const tk = ticks(lo, hi, 4);
+        for (const t of tk.out) if (x(t) >= x0 - 0.5 && x(t) <= x0 + P.w + 0.5) s += el('line', { x1: x(t), x2: x(t), y1: yAx, y2: yAx + 5, class: 'axis' }) +
+          el('text', { x: x(t), y: yAx + 18, 'text-anchor': 'middle', class: 'tick mono' }, t.toFixed(tk.step < 0.1 ? 2 : tk.step < 1 ? 1 : 0));
+        const g = P.g.slice().sort((p, q) => p.nm - q.nm), rowEnd = [];
+        for (const q of g) { const txt = q.wl ? `${q.lab} ${q.nm.toFixed(3)} nm` : q.lab, xx = x(q.nm), wl = 6.2 * txt.length + 6; let r = 0; while (rowEnd[r] !== undefined && rowEnd[r] > xx) r++; rowEnd[r] = xx + wl;
+          const yt = yLab + r * 12;
+          s += el('line', { x1: xx, x2: xx, y1: yt + 3, y2: yLine, stroke: q.col, 'stroke-width': 0.8, 'stroke-opacity': 0.5, 'stroke-dasharray': '1 3' });
+          s += el('line', { x1: xx, x2: xx, y1: yLine, y2: yAx, stroke: q.col, 'stroke-width': q.dash ? 1.4 : 2, 'stroke-dasharray': q.dash ? '5 3' : 'none' }, `<title>${q.lab}: ${q.nm.toFixed(3)} nm, ${q.nu.toFixed(3)} THz</title>`);
+          s += el('text', { x: xx + 3, y: yt, 'font-size': 10.5, fill: q.col, style: `fill:${q.col}` }, txt); }
+        // separations between neighbouring solid lines
+        const solid = g.filter(q => !q.dash);
+        for (let k = 0; k + 1 < solid.length; k++) {
+          const p = solid[k], q = solid[k + 1], xa = x(p.nm), xb = x(q.nm), xm = (xa + xb) / 2;
+          s += el('line', { x1: xa + 2, x2: xb - 2, y1: yDim, y2: yDim, stroke: 'var(--muted)', 'stroke-width': 1, 'marker-start': 'url(#arr)', 'marker-end': 'url(#arr)' });
+          s += el('text', { x: xm, y: yDim - 5, 'text-anchor': 'middle', class: 'tick mono halo', 'font-size': 10 }, fF(Math.abs(p.nu - q.nu)));
+          s += el('text', { x: xm, y: yDim + 12, 'text-anchor': 'middle', class: 'tick mono halo', 'font-size': 10 }, fN(Math.abs(q.nm - p.nm)));
+        }
+      });
+      // separation between the two clusters
+      const [p, q] = gapPair, xm = sepGap ? pad + pw + BRK / 2 : W / 2;
+      if (sepGap) s += el('line', { x1: pad + pw + 10, x2: pad + pw + BRK - 10, y1: yDim, y2: yDim, stroke: 'var(--muted)', 'stroke-width': 1, 'stroke-dasharray': '3 3', 'marker-start': 'url(#arr)', 'marker-end': 'url(#arr)' });
+      if (sepGap) {
+        s += el('text', { x: xm, y: yDim - 30, 'text-anchor': 'middle', class: 'tick halo', 'font-size': 10 }, `${p.lab} → ${q.lab}`);
+        s += el('text', { x: xm, y: yDim - 5, 'text-anchor': 'middle', class: 'tick mono halo', 'font-size': 10 }, fF(Math.abs(p.nu - q.nu)));
+        s += el('text', { x: xm, y: yDim + 12, 'text-anchor': 'middle', class: 'tick mono halo', 'font-size': 10 }, fN(Math.abs(q.nm - p.nm)));
+      } else s += el('text', { x: W - pad, y: y0 + 2, 'text-anchor': 'end', class: 'tick' }, `${p.lab} → ${q.lab}: ${fF(Math.abs(p.nu - q.nu))}, ${fN(Math.abs(q.nm - p.nm))}`);
+      return s;
+    };
+    const defs = '<defs><marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2" fill="none" stroke="var(--muted)" stroke-width="1.2"/></marker></defs>';
+    const svg = el('svg', { viewBox: `0 0 ${W} 372`, role: 'img', 'aria-label': 'Frequency layout' }, defs +
+      band(phot, pmp, 12, 'Telecom band (nm)', [phot[1], pmp[1]], [winLo, winHi]) +
+      band(outs, harm, 200, 'SFG band (nm)', [outs.find(q => q.lab === 'ωp2+ωc'), harm.find(q => Math.abs(q.nu - 2 * L.p2) < 1e-6) || harm[0]]));
+    $('layout').innerHTML = svg;
+  }
+
+  function renderPM() {
+    const c = cur, v = c.v, L = c.pr.L, T = v.T, nc = (L.s + L.i) / 2;
+    const span = Math.max(2.5 * v.D, 1.6 * Math.max(c.accH, c.accV) / 1000), N = 360;
+    const curve = (pol, pnu, gr) => { const pts = [];
+      for (let j = 0; j <= N; j++) { const f = -span + 2 * span * j / N, nu = nc + f, dk = kOf(pol, pnu + nu, T) - kOf(pol, pnu, T) - kOf(pol, nu, T);
+        pts.push([f, (phi(gr, Math.abs(dk)) / IDEAL) ** 2]); } return pts; };
+    const at = (pol, pnu, nu, gr) => { const dk = kOf(pol, pnu + nu, T) - kOf(pol, pnu, T) - kOf(pol, nu, T); return (phi(gr, Math.abs(dk)) / IDEAL) ** 2; };
+    const gH = c.grH, gV = c.grV, a = c.axV;
+    const fs = L.s - nc, fi = L.i - nc;
+    const H = [{ pts: curve('z', L.p2, gH), col: 'var(--h)' }];
+    const V = [{ pts: curve(a, L.p1, gV), col: 'var(--v)' }, { pts: curve(a, L.p3, gV), col: 'var(--v)', dash: '5 3' }];
+    const dotsH = [[fs, at('z', L.p2, L.s, gH), 'var(--ok)', 'H1'], [fi, at('z', L.p2, L.i, gH), 'var(--ok)', 'H2']];
+    const dotsV = [[fi, at(a, L.p1, L.i, gV), 'var(--ok)', 'V1'], [fs, at(a, L.p3, L.s, gV), 'var(--ok)', 'V2'],
+      [fs, at(a, L.p1, L.s, gV), 'var(--xt)', 'XT'], [fi, at(a, L.p3, L.i, gV), 'var(--xt)', 'XT']];
+    // optional rescaling to eta_rel = (d/d33)^2 (L/1 cm)^2 y with a common axis
+    const mode = (document.querySelector('input[name="pmScale"]:checked') || {}).value || 'y', eta = mode === 'eta', frac = false;
+    // exact grating lengths (whole periods, um), as in the Gate summary
+    const LHu = c.grH.walls[c.grH.walls.length - 1], LVu = c.grV.walls[c.grV.walls.length - 1];
+    const fH = eta ? 100 * LHu ** 2 / c.etaRef : 1, fV = eta ? 100 * (c.dV / v.d33) ** 2 * LVu ** 2 / c.etaRef : 1;
+    $('pmEtaNote').hidden = !eta;
+    const pctAxis = eta || frac;
+    for (const cv of H) cv.pts = cv.pts.map(([f, q]) => [f, q * fH]); for (const cv of V) cv.pts = cv.pts.map(([f, q]) => [f, q * fV]);
+    for (const d of dotsH) d[1] *= fH; for (const d of dotsV) d[1] *= fV;
+    const common = frac ? 105 : eta ? Math.max(...H.concat(V).flatMap(cv => cv.pts.map(q => q[1]))) * 1.12 : 0;
+    const ylab = frac ? 'photon converted (%) at reference pump' : eta ? 'η (% of matched 50 mm crystal)' : '[|Φ(Δk)| / (2/π)]²';
+    const svg = (title, curves, dots) => {
+      const W = 430, Hh = 250, pl = 44, pr = 10, pt = 22, pb = 36;
+      const ymax = common || Math.max(1e-6, ...curves.flatMap(cv => cv.pts.map(q => q[1]))) * 1.12;
+      const x = f => pl + (f + span) / (2 * span) * (W - pl - pr), y = q => pt + (1 - q / ymax) * (Hh - pt - pb);
+      let s = '';
+      const yt = ticks(0, ymax, 4); for (const q of yt.out) s += el('line', { x1: pl, x2: W - pr, y1: y(q), y2: y(q), class: 'grid' }) + el('text', { x: pl - 5, y: y(q) + 3.5, 'text-anchor': 'end', class: 'tick mono' }, (pctAxis ? (yt.step < 1 ? q.toFixed(1) : q.toFixed(0)) + '%' : (yt.step < 0.01 ? q.toFixed(3) : yt.step < 0.1 ? q.toFixed(2) : q.toFixed(1))));
+      const xt = ticks(-span * 1000, span * 1000, 5); for (const t of xt.out) s += el('text', { x: x(t / 1000), y: Hh - pb + 14, 'text-anchor': 'middle', class: 'tick mono' }, t.toFixed(0));
+      s += el('text', { x: (pl + W - pr) / 2, y: Hh - 5, 'text-anchor': 'middle', class: 'tick' }, 'photon frequency − centre (GHz)');
+      s += el('text', { x: 11, y: (pt + Hh - pb) / 2, 'text-anchor': 'middle', class: 'tick', transform: `rotate(-90 11 ${(pt + Hh - pb) / 2})` }, ylab);
+      s += el('text', { x: pl, y: 13, class: 'tick', 'font-weight': 600 }, title);
+      for (const [f, lab] of [[fs, 'ωs'], [fi, 'ωi']]) s += el('line', { x1: x(f), x2: x(f), y1: pt, y2: Hh - pb, stroke: 'var(--muted)', 'stroke-dasharray': '3 3' }) + el('text', { x: x(f) + 3, y: pt + 10, class: 'tick' }, lab);
+      for (const cv of curves) s += el('path', { d: cv.pts.map((q, j) => (j ? 'L' : 'M') + x(q[0]).toFixed(1) + ' ' + y(q[1]).toFixed(1)).join(''), fill: 'none', stroke: cv.col, 'stroke-width': 1.8, 'stroke-dasharray': cv.dash || 'none' });
+      for (const [f, q, col, lab] of dots) s += el('circle', { cx: x(f), cy: y(q), r: 4, fill: col }, `<title>${lab}: ${q.toFixed(3)}</title>`);
+      s += el('line', { x1: pl, x2: W - pr, y1: Hh - pb, y2: Hh - pb, class: 'axis' });
+      return el('svg', { viewBox: `0 0 ${W} ${Hh}`, role: 'img', 'aria-label': title }, s);
+    };
+    $('pmH').innerHTML = svg(c.two ? 'H photons in the H crystal (with ωp2)' : 'H photons (with ωp2)', H, dotsH);
+    $('pmV').innerHTML = svg(c.two ? 'V photons in the V crystal (ωp1, ωp3)' : 'V photons (with ωp1 and ωp3)', V, dotsV);
+  }
+
+  // ---------------- optimisation ----------------
+  const tick = () => new Promise(r => setTimeout(r, 0));
+  function lock(on, msg) { busy = on; }
+  // scans follow every change automatically: debounced, and a newer request cancels a running one
+  let scanTok = 0, scanTimer = null;
+  function scheduleScans() { clearTimeout(scanTimer); scanTimer = setTimeout(runScans, 250); }
+  let scanData = null;
+  // weak-conversion phase-matching factors for a design point (real domain patterns)
+  function pmPoint(q, mode, LHmm, LVmm, KH, KV, g) {
+    const pr = processes(q, mode), two = mode === 'two';
+    let gH, gV;
+    if (two) { gH = periodic(TWO_PI / KH, LHmm); gV = periodic(TWO_PI / KV, LVmm); }
+    else gH = gV = buildGrating({ type: g.gtype, LH: TWO_PI / KH, LV: TWO_PI / KV, Lmm: LHmm, wV: g.wV, minDomain: g.minD });
+    const y = x => (phi(two ? (x.crystal === 'H' ? gH : gV) : gH, Math.abs(x.dk)) / IDEAL) ** 2;
+    const lab = n => y(pr.list.find(x => x.label === n)), xt = st => y(pr.list.find(x => x.cat === 'crosstalk' && x.name.startsWith(st)));
+    const H = Math.min(lab('H1'), lab('H2')), V1 = lab('V1'), V2 = lab('V2');
+    return { H, V: Math.min(V1, V2), LHu: gH.walls[gH.walls.length - 1], LVu: gV.walls[gV.walls.length - 1] };
+  }
+  async function runScans() {
+    const tok = ++scanTok, live = () => tok === scanTok; $('scanStatus').textContent = 'Updating…';
+    const v = cur.v, two = v.mode === 'two', base = { lp2: v.lp2, lc: v.lc, anchor: v.anchor, T: v.T, D: v.D }, g = { gtype: v.gtype, wV: v.wV, minD: v.minD };
+    const LHc = v.Lmm, LVc = two ? v.LVmm : v.Lmm;
+    const ideal = q => { const per = idealPeriods(q, v.mode); return [TWO_PI / per.LH, TWO_PI / per.LV]; };
+    const Lr = [], Tr = [];
+    const KL = ideal(base);
+    const Lmax = 50, Lstep = Lmax / 200; // crystal length is limited to 50 mm (the 100% reference)
+    for (let l = Lstep; l <= Lmax + 1e-9; l += Lstep) { Lr.push({ x: +l.toFixed(2), ...pmPoint(base, v.mode, l, l, ...KL, g) });
+      if (Lr.length % 8 === 0) { $('scanStatus').textContent = `Updating: length ${Lr.length}/200`; await tick(); if (!live()) return; } }
+    // weakest of the four photons, Gate-summary scale: (d/d33)^2 L^2 y / max_L[L^2 y] (actual grating length, um)
+    const dr = (cur.dV / v.d33) ** 2; Lr.forEach(r => r.F = Math.min(r.LHu ** 2 * r.H, dr * r.LVu ** 2 * r.V) / cur.etaRef);
+    // design temperature: periods re-optimised at each T_d, current lengths; weakest photon on the Gate-summary scale
+    const weakest = r => Math.min(r.LHu ** 2 * r.H, dr * r.LVu ** 2 * r.V) / cur.etaRef;
+    for (let td = 20; td <= 200 + 1e-9; td += 5) {
+      const [KH, KV] = ideal({ ...base, T: td });
+      Tr.push({ x: td, F: weakest(pmPoint({ ...base, T: td }, v.mode, LHc, LVc, KH, KV, g)) });
+      if (Tr.length % 8 === 0) { $('scanStatus').textContent = `Updating: design temperature ${Tr.length}/37`; await tick(); if (!live()) return; } }
+    scanData = { L: Lr, T: Tr, at: { LH: LHc, LV: LVc, D: v.D, T: v.T, mode: v.mode } };
+    if (!live()) return; $('scanStatus').textContent = `${two ? 'Two crystals' : 'One crystal'} · length scan at Δ = ${(v.D * 1000).toFixed(0)} GHz${two ? ' (both crystals the same length)' : ''}, design-temperature scan 20–200 °C with ideal periods at each temperature`;
+    drawScans();
+  }
+  // percent label (2 significant figures below 10%) and a y-axis top that fits small values
+  const pctS = v => (v >= 0.1 ? (100 * v).toFixed(0) : v <= 0 ? '0' : String(+(100 * v).toPrecision(2))) + '%';
+  // best length = the first local maximum within 1% of the global one (later peaks of sin^2 are no higher but narrower)
+  function firstPeak(D, key) { const top = Math.max(...D.map(r => r[key]));
+    for (let j = 0; j < D.length; j++) { const a = j ? D[j - 1][key] : -1, c = j < D.length - 1 ? D[j + 1][key] : -1;
+      if (D[j][key] >= a && D[j][key] >= c && D[j][key] >= 0.99 * top) return D[j]; }
+    return D.reduce((p, q) => q[key] > p[key] ? q : p); }
+  function niceTop(m) { if (!(m > 0)) return 1; const e = 10 ** Math.floor(Math.log10(m)); for (const f of [1, 2, 4, 5, 8, 10]) if (f * e >= m * 1.08) return f * e; return 10 * e; }
+  function pctTop(m) { if (!(m > 0) || m >= 0.5) return 1; const e = 10 ** Math.floor(Math.log10(m)); for (const f of [1, 2, 4, 8, 10]) if (f * e >= m * 1.08) return f * e; return 10 * e; }
+  function scanSVG(data, xlab, xcur, fmtx, opt = {}) {
+    const W = opt.W || 430, H = 250, pl = opt.pct || opt.unit ? 54 : 40, pr = 10, pt = 14, pb = 36, xs = data.map(d => d.x), lo = Math.min(...xs), hi = Math.max(...xs);
+    const x = t => pl + (t - lo) / (hi - lo) * (W - pl - pr), key = opt.key || 'F', top = opt.pct ? pctTop(Math.max(...data.map(d => d[key]))) : opt.unit ? niceTop(Math.max(...data.map(d => d[key]))) : 1, y = q => pt + (1 - Math.min(1, q / top)) * (H - pt - pb);
+    let s = '';
+    for (const q of [0, 0.25, 0.5, 0.75, 1].map(f => f * top)) s += el('line', { x1: pl, x2: W - pr, y1: y(q), y2: y(q), class: 'grid' }) + el('text', { x: pl - 5, y: y(q) + 3.5, 'text-anchor': 'end', class: 'tick mono' }, opt.pct ? pctS(q) : opt.unit ? +q.toPrecision(3) + ' ' + opt.unit : q.toFixed(2));
+    const tk = ticks(lo, hi, 5); for (const t of tk.out) s += el('text', { x: x(t), y: H - pb + 14, 'text-anchor': 'middle', class: 'tick mono' }, fmtx(t));
+    s += el('text', { x: (pl + W - pr) / 2, y: H - 6, 'text-anchor': 'middle', class: 'tick' }, xlab);
+    const line = (key, col, w, dash, ok = () => true) => { let d = '', pen = false;
+      for (const q of data) { if (!ok(q)) { pen = false; continue; } d += (pen ? 'L' : 'M') + x(q.x).toFixed(1) + ' ' + y(q[key]).toFixed(1); pen = true; }
+      return el('path', { d, fill: 'none', stroke: col, 'stroke-width': w, 'stroke-dasharray': dash || 'none' }); };
+    // the crosstalk ratio is only meaningful where the V target is not negligible
+    if (!opt.pct && !opt.unit) s += line('H', 'var(--h)', 2) + line('V', 'var(--v)', 2);
+    else { s += line(key, opt.col || 'var(--ok)', 2.4);
+      if (opt.best) { const b = opt.xu === 'mm' ? firstPeak(data, key) : data.reduce((p, q) => q[key] > p[key] ? q : p);
+        s += el('circle', { cx: x(b.x), cy: y(b[key]), r: 3.5, fill: 'none', stroke: 'var(--ok)', 'stroke-width': 1.5 }) + el('text', { x: Math.min(W - 160, Math.max(pl + 4, x(b.x) + 6)), y: y(b[key]) + (b[key] / top > 0.8 ? 16 : -7), class: 'tick halo' }, `best: ${pctS(b[key])} at ${b.x.toFixed(opt.xu === 'mm' ? 1 : 0)} ${opt.xu}`); } }
+    if (opt.fwhm) s += el('text', { x: W - pr, y: pt + 10, 'text-anchor': 'end', class: 'tick halo' }, opt.fwhm);
+    if (xcur >= lo && xcur <= hi) s += el('line', { x1: x(xcur), x2: x(xcur), y1: pt, y2: H - pb, stroke: 'var(--accent)', 'stroke-width': 1, 'stroke-dasharray': '3 3', class: 'curline' });
+    s += el('line', { x1: pl, x2: W - pr, y1: H - pb, y2: H - pb, class: 'axis' });
+    return el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': xlab }, s);
+  }
+  function drawScans() {
+    if (!scanData) return; const v = cur.v, a = scanData.at, two = a.mode === 'two';
+    $('scanL').innerHTML = scanSVG(scanData.L, `Crystal length L (mm), Δ = ${(a.D * 1000).toFixed(0)} GHz`, two ? v.LVmm : v.Lmm, t => t.toFixed(0), { pct: true, best: true, xu: 'mm' });
+    const T = scanData.T, near = key => { const j = T.findIndex(r => r.x >= v.T); if (j <= 0) return T[0][key]; const r0 = T[j - 1], r1 = T[j]; return r0[key] + (v.T - r0.x) / (r1.x - r0.x) * (r1[key] - r0[key]); };
+    const Lname = two && a.LV !== a.LH ? `L = ${a.LH} / ${a.LV} mm` : `L = ${a.LH} mm`;
+    $('scanTe').innerHTML = scanSVG(T, `Design temperature (°C), ${Lname}`, v.T, t => t.toFixed(0), { pct: true, best: true, xu: '°C' });
+    const bL = firstPeak(scanData.L, 'F'), nowL = scanData.L.reduce((p, q) => Math.abs(q.x - (two ? v.LVmm : v.Lmm)) < Math.abs(p.x - (two ? v.LVmm : v.Lmm)) ? q : p);
+    const pc = r => pctS(r.F);
+    const T0 = T[0], T1 = T[T.length - 1];
+    $('scanBest').innerHTML = `Length: weakest photon <b>${pc(bL)} at L ≈ ${bL.x.toFixed(1)} mm</b> for Δ = ${(a.D * 1000).toFixed(0)} GHz (Δ·L ≈ ${(a.D * bL.x).toFixed(1)} THz·mm); current length ${pc(nowL)}. ` +
+      `Design temperature: at the current length the weakest photon goes from ${pctS(T0.F)} at ${T0.x} °C to ${pctS(T1.F)} at ${T1.x} °C (now ${pctS(near('F'))} at ${v.T.toFixed(0)} °C).`;
+    scanData.bestL = bL.x;
+  }
+  function markScans() { if (scanData) drawScans(); }
+
+  // ---------------- wiring ----------------
+  for (const id of ['D', 'T', 'L', 'LVlen', 'wV']) $(id).addEventListener('input', schedule);
+  for (const id of ['lp2', 'lc', 'anchor', 'LH', 'LV', 'gtype', 'minD', 'd33', 'd22', 'd31', 'd15']) $(id).addEventListener('change', schedule);
+  $('mode').addEventListener('change', async () => { manualPeriods = false; setIdealPeriods(); compute(); scanData = null; for (const id of ['scanL', 'scanTe', 'scanBest']) $(id).innerHTML = '';
+  });
+  // keep periods ideal while the wavelengths, spacing or temperature move, unless the user typed a period
+  let manualPeriods = false;
+  $('LH').addEventListener('input', () => manualPeriods = true); $('LV').addEventListener('input', () => manualPeriods = true);
+  for (const id of ['D', 'T', 'lp2', 'lc', 'anchor']) $(id).addEventListener(id === 'D' || id === 'T' ? 'input' : 'change', () => { if (!manualPeriods) setIdealPeriods(); });
+  $('auto').addEventListener('click', () => { manualPeriods = false; setIdealPeriods(); compute(); });
+  for (const r of document.querySelectorAll('input[name="pmScale"]')) r.addEventListener('change', () => renderPM());
+  $('useL').addEventListener('click', () => { if (!scanData) return;
+    $('L').value = scanData.bestL; $('LVlen').value = scanData.bestL; manualPeriods = false; setIdealPeriods(); compute(); });
+  setIdealPeriods(); compute();
+})();
+</script>
