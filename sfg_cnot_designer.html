@@ -197,6 +197,10 @@ code { font-family: var(--font-mono); font-size: 12px; }
         <div class="two" style="margin-top:8px">
           <div><div class="eqs plot-eq"><span><span class="lab">vs length L (Δ, T, K fixed)</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi>η</mi><mi>min</mi><mo>⁡</mo></msub><mo stretchy="false">(</mo><mi>L</mi><mo stretchy="false">)</mo></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \eta_{\min}(L)</annotation></semantics></math></span></span></div><div class="svgbox" id="scanL"></div></div>
           <div><div class="eqs plot-eq"><span><span class="lab">vs design temperature T<sub>d</sub> (L fixed, ideal periods at each T<sub>d</sub>)</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi>η</mi><mi>min</mi><mo>⁡</mo></msub><mo stretchy="false">(</mo><msub><mi>T</mi><mi>d</mi></msub><mo stretchy="false">)</mo></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \eta_{\min}(T_d)</annotation></semantics></math></span></span></div><div class="svgbox" id="scanTe"></div></div>
+          <div><div class="eqs plot-eq"><span><span class="lab">temperature tolerance (L fixed, periods fixed at T<sub>d</sub>)</span></span></div>
+            <div class="eqs plot-eq" style="margin:4px 0 2px"><span><span class="lab">plotted</span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><mfrac><mrow><msub><mi>y</mi><mi>H</mi></msub><mo stretchy="false">(</mo><mi>T</mi><mo stretchy="false">)</mo></mrow><mrow><mi>max</mi><mo>⁡</mo><msub><mi>y</mi><mi>H</mi></msub></mrow></mfrac><mo separator="true">,</mo><mtext>  </mtext><mfrac><mrow><msub><mi>y</mi><mi>V</mi></msub><mo stretchy="false">(</mo><mi>T</mi><mo stretchy="false">)</mo></mrow><mrow><mi>max</mi><mo>⁡</mo><msub><mi>y</mi><mi>V</mi></msub></mrow></mfrac><mo separator="true">,</mo><mspace width="2em"/><msub><mi>y</mi><mi>H</mi></msub><mo>=</mo><mi>min</mi><mo>⁡</mo><mo stretchy="false">(</mo><msub><mi>y</mi><mrow><mi>H</mi><mn>1</mn></mrow></msub><mo separator="true">,</mo><msub><mi>y</mi><mrow><mi>H</mi><mn>2</mn></mrow></msub><mo stretchy="false">)</mo><mo separator="true">,</mo><mtext>  </mtext><msub><mi>y</mi><mi>V</mi></msub><mo>=</mo><mi>min</mi><mo>⁡</mo><mo stretchy="false">(</mo><msub><mi>y</mi><mrow><mi>V</mi><mn>1</mn></mrow></msub><mo separator="true">,</mo><msub><mi>y</mi><mrow><mi>V</mi><mn>2</mn></mrow></msub><mo stretchy="false">)</mo></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle \dfrac{y_H(T)}{\max y_H},\ \ \dfrac{y_V(T)}{\max y_V},\qquad y_H = \min(y_{H1}, y_{H2}),\ \ y_V = \min(y_{V1}, y_{V2})</annotation></semantics></math></span></span></div>
+            <div class="eqs plot-eq" style="margin:2px 0 8px"><span><span class="katex"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mstyle scriptlevel="0" displaystyle="true"><msub><mi>y</mi><mi>t</mi></msub><mtext> from </mtext><mi mathvariant="normal">Δ</mi><msub><mi>k</mi><mi>t</mi></msub><mo stretchy="false">(</mo><mi>T</mi><mo stretchy="false">)</mo><mtext> with </mtext><mi>K</mi><mo>=</mo><mn>2</mn><mi>π</mi><mi mathvariant="normal">/</mi><mi mathvariant="normal">Λ</mi><mtext> fixed at </mtext><msub><mi>T</mi><mi>d</mi></msub></mstyle></mrow><annotation encoding="application/x-tex">\displaystyle y_t\ \text{from}\ \Delta k_t(T)\ \text{with}\ K = 2\pi/\Lambda\ \text{fixed at}\ T_d</annotation></semantics></math></span></span></div>
+            <div class="svgbox" id="scanTt"></div><div class="legend" style="margin-top:2px"><span><i style="background:var(--h)"></i>weaker H photon</span><span><i style="background:var(--v)"></i>weaker V photon</span><span>each relative to its own maximum; FWHM = width where ≥ 1/2</span></div></div>
         </div>
         <div class="legend"><span><i style="background:var(--ok)"></i>η<sub>min</sub>: weakest photon, % of a matched 50 mm crystal</span></div>
       </section>
@@ -923,10 +927,30 @@ const EQ = {"delay1":["<span class=\"katex\"><math xmlns=\"http://www.w3.org/199
       const [KH, KV] = ideal({ ...base, T: td });
       Tr.push({ x: td, F: weakest(pmPoint({ ...base, T: td }, v.mode, LHc, LVc, KH, KV, g)) });
       if (Tr.length % 8 === 0) { $('scanStatus').textContent = `Updating: design temperature ${Tr.length}/37`; await tick(); if (!live()) return; } }
-    scanData = { L: Lr, T: Tr, at: { LH: LHc, LV: LVc, D: v.D, T: v.T, mode: v.mode } };
-    if (!live()) return; $('scanStatus').textContent = `${two ? 'Two crystals' : 'One crystal'} · length scan at Δ = ${(v.D * 1000).toFixed(0)} GHz${two ? ' (both crystals the same length)' : ''}, design-temperature scan 20–200 °C with ideal periods at each temperature`;
+    // temperature tolerance: periods fixed at the entered values (set for T_d = current T), only Delta k follows T.
+    // H and V (weaker photon of each) are shown separately, each relative to its own maximum
+    const Kfix = [TWO_PI / v.LH25, TWO_PI / v.LV25], secH = two ? LHc : LHc * (1 - v.wV), secV = two ? LVc : LHc * v.wV;
+    const dkAt = t => { const l = processes({ ...base, T: t }, v.mode).list; return n => l.find(x => x.label === n).dk; };
+    const dkP = dkAt(v.T + 0.5), dkM = dkAt(v.T - 0.5);
+    const est = ['H1', 'H2', 'V1', 'V2'].map(n => 5.566 / (Math.abs(dkP(n) - dkM(n)) * 1000 * (n[0] === 'H' ? secH : secV)));
+    let half = Math.max(0.05, 1.5 * Math.max(...est.filter(Number.isFinite))), Tt = [], fw = null;
+    for (let tries = 0; tries < 4; tries++) {
+      Tt = []; const N = 161;
+      for (let j = 0; j < N; j++) { const t = v.T - half + 2 * half * j / (N - 1), r = pmPoint({ ...base, T: t }, v.mode, LHc, LVc, ...Kfix, g);
+        Tt.push({ x: t, H: r.H, V: r.V });
+        if (Tt.length % 20 === 0) { $('scanStatus').textContent = `Updating: temperature tolerance ${Tt.length}/${N}`; await tick(); if (!live()) return; } }
+      for (const k of ['H', 'V']) { const m = Math.max(...Tt.map(r => r[k])); Tt.forEach(r => r[k] = m > 0 ? r[k] / m : 0); }
+      fw = { H: fwhmOf(Tt, 'H'), V: fwhmOf(Tt, 'V') }; if (fw.H && fw.V) break; half *= 2; }
+    scanData = { L: Lr, T: Tr, Tt, fw, at: { LH: LHc, LV: LVc, D: v.D, T: v.T, mode: v.mode } };
+    if (!live()) return; $('scanStatus').textContent = `${two ? 'Two crystals' : 'One crystal'} · length scan at Δ = ${(v.D * 1000).toFixed(0)} GHz${two ? ' (both crystals the same length)' : ''}, design-temperature scan 20–200 °C with ideal periods at each temperature, tolerance scan with the entered periods fixed`;
     drawScans();
   }
+  // full width at half maximum of a scan around its peak (linear interpolation); null if a half-max point is outside the range
+  function fwhmOf(D, k = 'F') { let j = 0; D.forEach((r, i) => { if (r[k] > D[j][k]) j = i; }); const h = D[j][k] / 2; if (!(h > 0)) return null;
+    let a = null, b = null;
+    for (let i = j; i > 0; i--) if (D[i - 1][k] < h) { a = D[i - 1].x + (h - D[i - 1][k]) / (D[i][k] - D[i - 1][k]) * (D[i].x - D[i - 1].x); break; }
+    for (let i = j; i < D.length - 1; i++) if (D[i + 1][k] < h) { b = D[i].x + (D[i][k] - h) / (D[i][k] - D[i + 1][k]) * (D[i + 1].x - D[i].x); break; }
+    return a === null || b === null ? null : { w: b - a, a, b, peak: D[j] }; }
   // percent label (2 significant figures below 10%) and a y-axis top that fits small values
   const pctS = v => (v >= 0.1 ? (100 * v).toFixed(0) : v <= 0 ? '0' : String(+(100 * v).toPrecision(2))) + '%';
   // best length = the first local maximum within 1% of the global one (later peaks of sin^2 are no higher but narrower)
@@ -962,11 +986,16 @@ const EQ = {"delay1":["<span class=\"katex\"><math xmlns=\"http://www.w3.org/199
     const T = scanData.T, near = key => { const j = T.findIndex(r => r.x >= v.T); if (j <= 0) return T[0][key]; const r0 = T[j - 1], r1 = T[j]; return r0[key] + (v.T - r0.x) / (r1.x - r0.x) * (r1[key] - r0[key]); };
     const Lname = two && a.LV !== a.LH ? `L = ${a.LH} / ${a.LV} mm` : `L = ${a.LH} mm`;
     $('scanTe').innerHTML = scanSVG(T, `Design temperature (°C), ${Lname}`, v.T, t => t.toFixed(0), { pct: true, best: true, xu: '°C' });
+    const fw = scanData.fw, dT = scanData.Tt[scanData.Tt.length - 1].x - scanData.Tt[0].x, dec = dT < 2 ? 2 : dT < 10 ? 1 : 0;
+    const fwS = f => f ? (f.w < 1 ? f.w.toFixed(2) : f.w.toFixed(1)) + ' °C' : '—';
+    $('scanTt').innerHTML = scanSVG(scanData.Tt, `Operating temperature T (°C), design ${a.T.toFixed(1)} °C, ${Lname}`, v.T, t => t.toFixed(dec),
+      { fwhm: `FWHM: H ${fwS(fw.H)}, V ${fwS(fw.V)}` });
     const bL = firstPeak(scanData.L, 'F'), nowL = scanData.L.reduce((p, q) => Math.abs(q.x - (two ? v.LVmm : v.Lmm)) < Math.abs(p.x - (two ? v.LVmm : v.Lmm)) ? q : p);
     const pc = r => pctS(r.F);
     const T0 = T[0], T1 = T[T.length - 1];
     $('scanBest').innerHTML = `Length: weakest photon <b>${pc(bL)} at L ≈ ${bL.x.toFixed(1)} mm</b> for Δ = ${(a.D * 1000).toFixed(0)} GHz (Δ·L ≈ ${(a.D * bL.x).toFixed(1)} THz·mm); current length ${pc(nowL)}. ` +
-      `Design temperature: at the current length the weakest photon goes from ${pctS(T0.F)} at ${T0.x} °C to ${pctS(T1.F)} at ${T1.x} °C (now ${pctS(near('F'))} at ${v.T.toFixed(0)} °C).`;
+      `Design temperature: at the current length the weakest photon goes from ${pctS(T0.F)} at ${T0.x} °C to ${pctS(T1.F)} at ${T1.x} °C (now ${pctS(near('F'))} at ${v.T.toFixed(0)} °C). ` +
+      `Temperature tolerance (periods fixed): full width at half maximum <b>H ${fwS(fw.H)}, V ${fwS(fw.V)}</b>.`;
     scanData.bestL = bL.x;
   }
   function markScans() { if (scanData) drawScans(); }
@@ -976,7 +1005,7 @@ const EQ = {"delay1":["<span class=\"katex\"><math xmlns=\"http://www.w3.org/199
   for (const id of ['lp2', 'lc', 'anchor', 'LH', 'LV', 'gtype', 'minD', 'd33', 'd22', 'd31', 'd15']) $(id).addEventListener('change', schedule);
   $('mat').addEventListener('change', () => { manualPeriods = false; setIdealPeriods(); compute(); });
   $('d33k').addEventListener('change', schedule);
-  $('mode').addEventListener('change', async () => { manualPeriods = false; setIdealPeriods(); compute(); scanData = null; for (const id of ['scanL', 'scanTe', 'scanBest']) $(id).innerHTML = '';
+  $('mode').addEventListener('change', async () => { manualPeriods = false; setIdealPeriods(); compute(); scanData = null; for (const id of ['scanL', 'scanTe', 'scanTt', 'scanBest']) $(id).innerHTML = '';
   });
   // keep periods ideal while the wavelengths, spacing or temperature move, unless the user typed a period
   let manualPeriods = false;
