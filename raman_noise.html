@@ -79,6 +79,10 @@ canvas { width: 100%; height: 380px; display: block; }
 .rec h3 { margin: 4px 0 0; font-size: 0.86rem; color: var(--ink); font-weight: 600; }
 .rec .reftab { min-width: 520px; }
 .reftab td b { color: var(--ink); }
+.reftab .rng { display: block; color: var(--ink); }
+.reftab .gap { display: block; color: var(--muted); font-size: 0.76rem; margin-bottom: 4px; }
+.reftab td.both .rng { font-weight: 600; }
+.rec .foot { font-size: 0.78rem; }
 .eq { font-size: 0.82rem; color: var(--muted); margin-top: 8px; }
 .eq .f { display: block; font-family: var(--font-data); color: var(--ink); margin: 3px 0; overflow-x: auto; white-space: nowrap; }
 .eq .src { display: block; font-size: 0.78rem; }
@@ -138,12 +142,9 @@ canvas { width: 100%; height: 380px; display: block; }
 
   <div class="panel notes rec">
     <h2>Pump ranges that can be used</h2>
-    <p>Pumps where no Raman contribution in any polarisation configuration exceeds 5% of the crystal's strongest line, for signals ±100 GHz around the centre at 25 °C. Offsets in brackets are signal centre minus pump, in cm⁻¹: negative means the signal is redder than the pump (Stokes), positive bluer (anti-Stokes).</p>
-    <div class="tablewrap"><table class="reftab"><thead><tr><th scope="col">Signal centre</th><th scope="col">PPMgO:CLN</th><th scope="col">PPKTP</th><th scope="col">Both</th></tr></thead><tbody>
-      <tr><th scope="row">1556 nm</th><td>1529–1543 nm (−113 to −54 cm⁻¹, Stokes)<br>or 1570–1586 nm (+57 to +122 cm⁻¹, anti-Stokes)</td><td>1518–1531 nm (−161 to −105 cm⁻¹, Stokes)<br>or 1582–1600 nm (+106 to +177 cm⁻¹, anti-Stokes)</td><td><b>1582–1586 nm</b> (+106 to +122 cm⁻¹, anti-Stokes)</td></tr>
-      <tr><th scope="row">1306.6 nm</th><td>1500–1600 nm (+987 to +1403 cm⁻¹, anti-Stokes)</td><td>1500–1600 nm (+987 to +1403 cm⁻¹, anti-Stokes)</td><td><b>1500–1600 nm</b> (+987 to +1403 cm⁻¹, anti-Stokes)</td></tr>
-    </tbody></table></div>
-    <p>For 1556 nm, pumps between 1543 and 1569 nm are excluded as too close to the signals, and KTP has no data between 1531 and 1581 nm. For 1306.6 nm every pump stays below 0.1%.</p>
+    <p id="recIntro"></p>
+    <div class="tablewrap"><table class="reftab"><thead><tr><th scope="col">Signal centre</th><th scope="col">PPMgO:CLN</th><th scope="col">PPKTP</th></tr></thead><tbody id="recBody"></tbody></table></div>
+    <p class="foot">† No y↔z or y→y data over part of the range. Pumps within 50 cm⁻¹ of the signals are excluded. Fan's LN device floor (14–40%, partly fibre Raman) is not included.</p>
   </div>
   <div class="panel notes">
     <h2>Lithium niobate (PPMgO:CLN)</h2>
@@ -165,23 +166,24 @@ canvas { width: 100%; height: 380px; display: block; }
     mann: { short: "Mann", name: "Mann et al. 2024", tag: "PPKTP device noise", color: "--mann" }
   };
   const L = (w, n, second) => ({ w, n, second: !!second });
+  const sc = (d, k) => ({ start: d.start, I: d.I.map(v => v * k) });
+  const PELC254 = 0.7413; // Pelc's 254 cm⁻¹ line height relative to its 633 line
   const LNEDGE = "LN's first-order lines end near 880 cm⁻¹; beyond that only second-order bands";
   const SPEC = {
     LN: {
-      zz: { curves: [["liu", DATA.liu_zz], ["pelc", DATA.pelc_zz]], fan: DATA.fan, edge: LNEDGE, edgeW: 880,
+      zz: { curves: [["liu", DATA.liu_zz], ["pelc", sc(DATA.pelc_zz, 1 / PELC254)]], norm: "254 cm⁻¹ line = 100%", fan: DATA.fan, edge: LNEDGE, edgeW: 880,
         lines: [L(253, "A₁(TO₁)"), L(276, "A₁(TO₂)"), L(333, "A₁(TO₃)"), L(633, "A₁(TO₄)"), L(880, "weak line near 880")] },
-      yz: { curves: [["liu", DATA.liu_yz]], edge: LNEDGE, edgeW: 880,
+      yz: { curves: [["liu", DATA.liu_yz]], norm: "tallest y↔z line = 100%", edge: LNEDGE, edgeW: 880,
         lines: [L(150, "E(TO₁)"), L(237, "E(TO₂)"), L(262, "E(TO₃)"), L(321, "E(TO₄)"), L(368, "E(TO₅,₆)"), L(432, "E(TO₇)"), L(580, "E(TO₈)"), L(664, "E(TO₉)")] },
-      yy: { curves: [["sanna", DATA.s_yy]], note: "lower bound", edge: LNEDGE, edgeW: 880,
+      yy: { curves: [["sanna", DATA.s_yy]], norm: "tallest y→y line = 100%", note: "lower bound", edge: LNEDGE, edgeW: 880,
         lines: [L(150, "E(TO₁)"), L(237, "E(TO₂)"), L(253, "A₁(TO₁)"), L(262, "E(TO₃)"), L(276, "A₁(TO₂)"), L(321, "E(TO₄)"), L(333, "A₁(TO₃)"), L(432, "E(TO₇)"), L(580, "E(TO₈)"), L(634, "A₁(TO₄)")] }
     },
     KTP: {
-      // third entry: factor that converts the curve to a fraction of the z→z peak of the same source
-      zz: { curves: [["neufeld", DATA.k_zz, 1], ["mann", DATA.mann_zz, 1]], edge: "KTP's first-order lines end near 1100 cm⁻¹", edgeW: 1100,
+      zz: { curves: [["neufeld", DATA.k_zz], ["mann", DATA.mann_zz]], norm: "692 cm⁻¹ z→z line = 100%", edge: "KTP's first-order lines end near 1100 cm⁻¹", edgeW: 1100,
         lines: [L(211, "A₁ line"), L(264, "A₁ line"), L(310, "A₁ line"), L(370, "A₁ line"), L(633, "A₁ line"), L(692, "A₁ ν₁, strongest"), L(991, "PO₄ line"), L(1046, "PO₄ line"), L(1335, "Mann device peak, ~5% of the 692 line", true)] },
-      yz: { curves: [["neufeld", DATA.k_yz, 10.2 / 26.3]], edge: "KTP's first-order lines end near 1100 cm⁻¹", edgeW: 1100,
+      yz: { curves: [["neufeld", sc(DATA.k_yz, 10.2 / 26.3)]], norm: "692 cm⁻¹ z→z line = 100%", edge: "KTP's first-order lines end near 1100 cm⁻¹", edgeW: 1100,
         lines: [L(171, "B₂ line"), L(220, "B₂ line"), L(266, "B₂ line"), L(325, "B₂ line"), L(636, "B₂ line"), L(698, "B₂, strongest"), L(832, "B₂ line")] },
-      yy: { curves: [["neufeld", DATA.k_yy, 11.2 / 26.3], ["mann", DATA.mann_yy, 1.416]], edge: "KTP's first-order lines end near 1100 cm⁻¹", edgeW: 1100,
+      yy: { curves: [["neufeld", sc(DATA.k_yy, 11.2 / 26.3)], ["mann", sc(DATA.mann_yy, 1.416)]], norm: "692 cm⁻¹ z→z line = 100%", edge: "KTP's first-order lines end near 1100 cm⁻¹", edgeW: 1100,
         lines: [L(152, "A₁ line"), L(209, "A₁ line"), L(265, "A₁ line"), L(371, "A₁ line"), L(633, "A₁ line"), L(691, "A₁ ν₁, strongest"), L(832, "A₁ line"), L(972, "PO₄ line"), L(1044, "PO₄ line"), L(1097, "PO₄ line")] }
     }
   };
@@ -207,7 +209,8 @@ canvas { width: 100%; height: 380px; display: block; }
   };
   const pct = v => v >= 0.1 ? (100 * v).toFixed(0) + "%" : v >= 0.01 ? (100 * v).toFixed(1) + "%" : v >= 0.001 ? (100 * v).toFixed(2) + "%" : (100 * v).toPrecision(2) + "%";
   // anti-Stokes / Stokes at the same shift, same pump: Boltzmann factor × (ω_aS/ω_S)³ (Pelc et al. 2011, Eq. 4), 25 °C
-  const asFactor = w => { const np = 1e7 / st.pump; return Math.exp(-HCK * w / T_ROOM) * Math.pow((np + w) / (np - w), 3); };
+  const asF = (w, p) => { const np = 1e7 / p; return Math.exp(-HCK * w / T_ROOM) * Math.pow((np + w) / (np - w), 3); };
+  const asFactor = w => asF(w, st.pump);
   const spec = () => SPEC[st.mat][st.ch];
 
   function signals() {
@@ -220,13 +223,12 @@ canvas { width: 100%; height: 380px; display: block; }
     const l1 = `${sg.om >= 0 ? "+" : "−"}${sg.w.toFixed(0)} cm⁻¹ · output ${sg.out.toFixed(1)} nm`;
     const F = sg.om > 0 ? asFactor(sg.w) : 1;
     const l3 = sg.om > 0 ? `× ${F < 0.01 ? F.toPrecision(2) : F.toFixed(2)} → anti-Stokes at 25 °C` : "Stokes side: published height applies directly";
+    const fv = fanValue(sp, sg.w), fanLine = fv !== null ? `device floor (Fan): ${pct(F * fv / FAN_PEAK)}, includes fibre Raman and SH-seeded noise` : null;
     if (sg.w < 50) return { v: "–", lines: [l1, "too close to the pump"] };
-    const vals = sp.curves.map(([k, d, sc]) => [k, arrVal(d, sg.w), sc]).filter(([, v]) => v !== null);
-    const parts = vals.map(([k, v, sc]) => `${SRC[k].short} ${pct(v)}` + (sc && sc !== 1 ? ` (${pct(v * sc)} of z→z)` : ""));
-    const fv = fanValue(sp, sg.w);
-    if (fv !== null) parts.unshift(`Fan device ${pct(fv / FAN_PEAK)}`);
+    const vals = sp.curves.map(([k, d]) => [k, arrVal(d, sg.w)]).filter(([, v]) => v !== null);
+    const parts = vals.map(([k, v]) => `${SRC[k].short} ${pct(v)}`);
     if (sp.note && vals.length) parts.push(sp.note);
-    if (fv !== null || vals.length) return { v: pct(F * (fv !== null ? fv / FAN_PEAK : vals[0][1])), unit: sg.om > 0 ? " of peak · anti-Stokes" : " of peak · Stokes", lines: [l1, "published (Stokes): " + parts.join(" · "), l3] };
+    if (vals.length) return { v: pct(F * vals[0][1]), unit: sg.om > 0 ? " · anti-Stokes" : " · Stokes", lines: [l1, "published (Stokes): " + parts.join(" · "), l3].concat(fanLine ? [fanLine] : []) };
     const start = Math.min(...sp.curves.map(([, d]) => d.start));
     return { v: "no data", lines: [l1, sg.w < start ? `below the measured range (starts at ${start} cm⁻¹)` : "no published spectrum at this offset", l3] };
   }
@@ -248,6 +250,46 @@ canvas { width: 100%; height: 380px; display: block; }
     else setCard(3, "Nearest Raman line", { v: `${best.w} cm⁻¹`, lines: [best.n, `S${which + 1} is ${dist} cm⁻¹ ${dd >= 0 ? "above" : "below"} it`] });
   }
 
+
+  // usable pump ranges, from the same numbers as the readouts
+  function worstAt(mat, c, p, spg) {
+    const nu0 = C_NM_THZ / c, d = spg / 1000; let worst = null; const miss = [];
+    for (const ch of ["zz", "yz", "yy"]) {
+      const sp = SPEC[mat][ch]; let cw = null;
+      for (const s of [C_NM_THZ / (nu0 + d), C_NM_THZ / (nu0 - d)]) {
+        const om = 1e7 / s - 1e7 / p, w = Math.abs(om);
+        if (w < 50) return { close: true };
+        let v = null; for (const [, dd] of sp.curves) { v = arrVal(dd, w); if (v !== null) break; }
+        if (v === null) { cw = null; break; }
+        v *= om > 0 ? asF(w, p) : 1; cw = cw === null ? v : Math.max(cw, v);
+      }
+      if (cw === null) miss.push(ch); else worst = worst === null ? cw : Math.max(worst, cw);
+    }
+    return { worst, miss };
+  }
+  const CHN = { zz: "z→z", yz: "y↔z", yy: "y→y" };
+  function recTable() {
+    const spg = isFinite(st.sp) ? st.sp : 0, P = []; for (let i = 0; i <= 1000; i++) P.push(1500 + i / 10);
+    $("recIntro").textContent = `Every polarisation configuration under 5% of the reference line (LN 254 cm⁻¹, KTP 692 cm⁻¹); signals ±${spg} GHz, 25 °C.`;
+    const rows = [["1556", 1556], ["1306.6", 1306.6]].map(([lab, c]) => {
+      const ok = {}, info = {};
+      ["LN", "KTP"].forEach(m => { info[m] = P.map(p => worstAt(m, c, p, spg)); ok[m] = info[m].map(r => !r.close && r.worst !== null && r.worst < 0.05); });
+      const fmt = key => {
+        const segs = []; let s0 = null;
+        ok[key].forEach((v, i) => { if (v && s0 === null) s0 = i; if ((!v || i === P.length - 1) && s0 !== null) { const e = v ? i : i - 1; if (P[e] - P[s0] >= 2.95) segs.push([s0, e]); s0 = null; } });
+        if (!segs.length) return "none";
+        return segs.map(([a, b]) => {
+          const oa = 1e7 / c - 1e7 / P[a], ob = 1e7 / c - 1e7 / P[b], f = o => (o >= 0 ? "+" : "−") + Math.abs(o).toFixed(0);
+          const side = oa > 0 && ob > 0 ? "anti-Stokes" : oa < 0 && ob < 0 ? "Stokes" : "both sides";
+          const mats = [key], gaps = new Set();
+          for (let i = a; i <= b; i++) mats.forEach(m => info[m][i].miss && info[m][i].miss.forEach(ch => gaps.add(ch)));
+          return `<span class="rng">${P[a].toFixed(0)}–${P[b].toFixed(0)} nm${gaps.size ? " †" : ""}</span><span class="gap">${f(oa)} to ${f(ob)} cm⁻¹, ${side}</span>`;
+        }).join("");
+      };
+      return `<tr><th scope="row">${lab} nm</th><td>${fmt("LN")}</td><td>${fmt("KTP")}</td></tr>`;
+    });
+    $("recBody").innerHTML = rows.join("");
+  }
   let geom = null;
   function hatch(ctx, x0, x1, T, B) {
     if (x1 <= x0) return;
@@ -266,17 +308,18 @@ canvas { width: 100%; height: 380px; display: block; }
     const xmax = Math.max(1000, Math.min(1600, Math.ceil((maxW + 100) / 100) * 100));
     const xm = w => Lm + w / xmax * (R - Lm);
     const anti = S.every(s => s.om > 0 && s.w >= 50), dec = anti ? 6 : 4;
-    const ym = st.log ? v => B - (Math.log10(Math.max(v, Math.pow(10, -dec))) + dec) / dec * (B - T) : v => B - v / 1.08 * (B - T);
+    const top = Math.max(1, ...sp.curves.map(([, d]) => Math.max(...d.I))) * 1.08, ltop = Math.log10(top);
+    const ym = st.log ? v => B - (Math.log10(Math.max(v, Math.pow(10, -dec))) + dec) / (dec + ltop) * (B - T) : v => B - v / top * (B - T);
     ctx.clearRect(0, 0, W, H);
     ctx.font = `11px ${css("--font-data")}`; ctx.fillStyle = css("--muted"); ctx.strokeStyle = css("--grid"); ctx.lineWidth = 1;
     ctx.textAlign = "right"; ctx.textBaseline = "middle";
-    const yt = st.log ? Array.from({ length: dec + 1 }, (_, i) => { const v = Math.pow(10, i - dec); const p = 100 * v; return [v, (p >= 1 ? p.toFixed(0) : p.toFixed(-Math.round(Math.log10(p)))) + "%"]; }) : [[0, "0"], [0.25, "25%"], [0.5, "50%"], [0.75, "75%"], [1, "100%"]];
+    const yt = st.log ? Array.from({ length: dec + 1 }, (_, i) => { const v = Math.pow(10, i - dec); const p = 100 * v; return [v, (p >= 1 ? p.toFixed(0) : p.toFixed(-Math.round(Math.log10(p)))) + "%"]; }) : Array.from({ length: Math.floor(top / 0.25) + 1 }, (_, i) => [i * 0.25, i ? `${i * 25}%` : "0"]);
     yt.forEach(([v, t]) => { const y = ym(v); ctx.beginPath(); ctx.moveTo(Lm, y); ctx.lineTo(R, y); ctx.stroke(); ctx.fillText(t, Lm - 6, y); });
     const step = xmax > 1200 ? 200 : 100;
     ctx.textAlign = "center"; ctx.textBaseline = "top";
     for (let v = 0; v <= xmax; v += step) { const x = xm(v); ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, B); ctx.stroke(); ctx.fillText(v, x, B + 6); }
     ctx.fillText("Raman shift = |offset| (cm⁻¹)", (Lm + R) / 2, B + 22);
-    ctx.save(); ctx.translate(12, (T + B) / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = "middle"; ctx.fillText(anti ? "anti-Stokes, vs each curve's Stokes peak" : "normalised to each curve's tallest peak", 0, 0); ctx.restore();
+    ctx.save(); ctx.translate(12, (T + B) / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = "middle"; ctx.fillText((anti ? "anti-Stokes · " : "") + sp.norm, 0, 0); ctx.restore();
     const dataStart = Math.min(...sp.curves.map(([, d]) => d.start)), dataEnd = Math.max(...sp.curves.map(([, d]) => endOf(d)));
     hatch(ctx, xm(0), xm(dataStart), T, B); hatch(ctx, xm(dataEnd), R, T, B);
     ctx.fillStyle = css("--muted"); ctx.textAlign = "center"; ctx.textBaseline = "top";
@@ -324,21 +367,22 @@ canvas { width: 100%; height: 380px; display: block; }
       ctx.strokeStyle = css("--mark"); ctx.lineWidth = 2; ctx.setLineDash(i ? [2, 3] : [6, 4]);
       ctx.beginPath(); ctx.moveTo(xs[i], T); ctx.lineTo(xs[i], B); ctx.stroke(); ctx.setLineDash([]);
       let v = null; for (const [, d] of sp.curves) { v = arrVal(d, sg.w); if (v !== null) break; }
-      if (v !== null && sg.w >= 50) { const fv = fanValue(sp, sg.w); if (fv !== null) v = fv / FAN_PEAK; if (sg.om > 0) v *= asFactor(sg.w); ctx.fillStyle = css("--mark"); ctx.beginPath(); ctx.arc(xs[i], ym(v), 4, 0, 2 * Math.PI); ctx.fill(); }
+      if (v !== null && sg.w >= 50) { if (sg.om > 0) v *= asFactor(sg.w); ctx.fillStyle = css("--mark"); ctx.beginPath(); ctx.arc(xs[i], ym(v), 4, 0, 2 * Math.PI); ctx.fill(); }
     });
     ctx.font = `500 11px ${css("--font-data")}`;
     const pill = (text, x) => { const tw = ctx.measureText(text).width + 10, lx = Math.min(Math.max(x - tw / 2, Lm), R - tw);
       ctx.fillStyle = css("--mark"); ctx.fillRect(lx, 6, tw, 18); ctx.fillStyle = css("--panel"); ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(text, lx + 5, 15.5); };
     if (xs[0] !== null && xs[1] !== null && Math.abs(xs[0] - xs[1]) < 90) pill(`S1 ${S[0].w.toFixed(0)} · S2 ${S[1].w.toFixed(0)} cm⁻¹`, (xs[0] + xs[1]) / 2);
     else S.forEach((sg, i) => { if (xs[i] !== null) pill(`S${i + 1} ${sg.w.toFixed(0)} cm⁻¹`, xs[i]); });
-    $("legend").innerHTML = (sp.fan ? `<span><i style="border-color:var(--fan)"></i>Fan et al. 2021 · PPLN device, measured counts</span>` : "") +
+    $("legend").innerHTML = (sp.fan ? `<span><i style="border-color:var(--fan)"></i>Fan et al. 2021 · device floor (not used in readouts)</span>` : "") +
       sp.curves.map(([k]) => `<span><i style="border-color:var(${SRC[k].color})"></i>${SRC[k].name} · ${SRC[k].tag}</span>`).join("") +
       (sp.lines.some(l => l.second && l.w < xmax) ? `<span><i style="border-color:var(--ink)"></i>short tick: peak in Mann z→z</span>` : "") +
       (anti ? `<span>faded: published (Stokes) · solid: anti-Stokes, what our crystal at 25 °C gives</span>` : "") +
       `<span><i style="border-color:var(--mark)"></i>S1 (dashed), S2 (dotted)</span>`;
     geom = { Lm, R, xmax };
   }
-  function update() { try { localStorage.setItem("raman-offset-v6", JSON.stringify(st)); } catch (e) {} stats(); draw(); }
+  let lastSp = null;
+  function update() { if (st.sp !== lastSp) { lastSp = st.sp; recTable(); } try { localStorage.setItem("raman-offset-v6", JSON.stringify(st)); } catch (e) {} stats(); draw(); }
   const setPump = v => { if (!isFinite(v)) return; st.pump = Math.min(1600, Math.max(1500, v)); update(); };
   $("pumpR").addEventListener("input", e => { const v = parseFloat(e.target.value); $("pumpN").value = v; setPump(v); });
   $("pumpN").addEventListener("change", e => { const v = parseFloat(e.target.value); if (isFinite(v)) { const c = Math.min(1600, Math.max(1500, v)); $("pumpN").value = c; $("pumpR").value = c; setPump(c); } });
